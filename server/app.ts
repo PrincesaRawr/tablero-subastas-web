@@ -188,7 +188,7 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
   /** Envuelve un manejador: captura errores y responde por el ack. */
   const handle =
     <P,>(socket: ClientSocket, fn: (p: P) => object | void) =>
-    (payload: P, ack?: (r: unknown) => void) => {
+    (payload: P, ack?: (r: any) => void) => {
       const reply = typeof ack === 'function' ? ack : () => {};
       try {
         reply({ ok: true, ...(fn(payload ?? ({} as P)) ?? {}) });
