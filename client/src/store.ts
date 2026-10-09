@@ -90,13 +90,10 @@ type Payload<E extends keyof ClientToServer> = Parameters<ClientToServer[E]>[0];
 /** Envía una petición y muestra el error si la hay. Devuelve la respuesta o null. */
 export function call<E extends keyof ClientToServer>(event: E, payload: Payload<E>): Promise<any | null> {
   return new Promise((resolve) => {
-    if (!socket.connected) {
-      showToast('Sin conexión con el servidor. Reintentando…');
-      return resolve(null);
-    }
-    (socket.timeout(8000) as any).emit(event, payload, (err: unknown, res: any) => {
+    // Si aún no hay conexión, Socket.IO guarda el mensaje y lo envía al conectar.
+    (socket.timeout(15000) as any).emit(event, payload, (err: unknown, res: any) => {
       if (err) {
-        showToast('El servidor no responde. Inténtalo de nuevo.');
+        showToast(socket.connected ? 'El servidor no responde. Inténtalo de nuevo.' : 'Sin conexión con el servidor. Inténtalo de nuevo.');
         return resolve(null);
       }
       if (!res.ok) {
