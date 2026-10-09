@@ -59,6 +59,8 @@ export interface Negotiation {
   /** Último que rechazó una propuesta (solo informativo). */
   rejectedBy: string | null;
   deadline: number;
+  /** true = empataron en la misma subasta: no eligen fichas, colocan juntos las 5 de esa subasta. */
+  shared: boolean;
 }
 
 export interface PlacementTask {
@@ -154,7 +156,7 @@ export function createGame(playerIds: string[], rng: Rng): GameState {
 const fail = (error: string): ReducerResult => ({ ok: false, error });
 
 export function publicResolution(r: Resolution): PublicResolution {
-  return { winners: r.winners, outcome: r.outcome, recipient: r.recipient };
+  return { winners: r.winners, outcome: r.outcome, recipient: r.recipient, sharedAuction: r.sharedAuction };
 }
 
 export function gameReducer(prev: GameState, action: GameAction, ctx: ActionContext): ReducerResult {
@@ -263,6 +265,23 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
             proposal: null,
             rejectedBy: null,
             deadline: ctx.now + NEGOTIATION_TIME_LIMIT_S * 1000,
+            shared: false,
+          };
+          break;
+        }
+        case 'shared-tie': {
+          const w = res.winners[res.sharedAuction!]!;
+          const [a, b] = [w.playerId, w.coWinner!];
+          const pool = s.auction[res.sharedAuction!];
+          s.phase = 'NEGOCIACION';
+          s.negotiation = {
+            players: [a, b],
+            tokens: { [a]: pool, [b]: pool },
+            picks: { [a]: [], [b]: [] }, // no hay que elegir: se colocan las 5 entre los dos
+            proposal: null,
+            rejectedBy: null,
+            deadline: ctx.now + NEGOTIATION_TIME_LIMIT_S * 1000,
+            shared: true,
           };
           break;
         }
@@ -330,6 +349,7 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       const other = n.players[0] === me ? n.players[1] : n.players[0];
 
       if (action.type === 'negPick') {
+        if (n.shared) return fail('En este empate no se eligen fichas: colocáis juntos las 5.');
         const idx = action.indices;
         if (
           !Array.isArray(idx) ||
@@ -381,6 +401,7 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
 
 /** Las 6 fichas elegidas entre los dos negociadores. */
 export function negotiationTokens(n: Negotiation): Color[] {
+  if (n.shared) return n.tokens[n.players[0]];
   return n.players.flatMap((p) => (n.picks[p] ?? []).map((i) => n.tokens[p][i]));
 }
 

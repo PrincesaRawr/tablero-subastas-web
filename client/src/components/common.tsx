@@ -97,6 +97,10 @@ export function RulesModal({ onClose }: { onClose: () => void }) {
           colocar las 6. Si no hay acuerdo (o pasan {NEGOTIATION_TIME_LIMIT_S / 60} minutos), la ronda es nula y los dos
           pierden lo pujado.
         </p>
+        <p>
+          Si dos personas pujan lo mismo en la <b>misma subasta</b> y esa es la que da fichas, también negocian: deciden
+          juntas dónde van sus 5 fichas, y las dos pierden lo pujado. Con tres o más empatadas se decide al azar.
+        </p>
         <h3>🪙 Monedas</h3>
         <p>Los dos ganadores pierden lo que pujaron, se lleven fichas o no. El resto lo recupera todo.</p>
         <h3>👑 Final</h3>

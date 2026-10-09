@@ -174,3 +174,23 @@ describe('negociación', () => {
     expect(r.ok && r.state.log.at(-1)).toMatchObject({ type: 'null-round', reason: 'tiempo' });
   });
 });
+
+describe('empate en la misma subasta', () => {
+  it('los dos colocan juntos las 5 fichas de esa subasta', () => {
+    let s = toOpenAuction(createGame(['ana', 'luis', 'eva'], seeded(11)));
+    s = run(s, { type: 'bid', bid: { A: 4, B: 0 } }, 'ana');
+    s = run(s, { type: 'bid', bid: { A: 4, B: 0 } }, 'luis');
+    s = run(s, { type: 'close' }, 'host', true);
+    expect(s.phase).toBe('NEGOCIACION');
+    const n = s.negotiation!;
+    expect(n.shared).toBe(true);
+    expect(n.players).toEqual(['ana', 'luis']);
+    expect(negotiationTokens(n)).toEqual(s.auction!.A);
+    expect(tryRun(s, { type: 'negPick', indices: [0, 1, 2] }, 'ana')).toMatchObject({ ok: false });
+    expect(s.players.map((p) => p.coins)).toEqual([36, 36, 40]);
+    s = run(s, { type: 'negPropose', placements: firstFree(s, s.auction!.A) }, 'luis');
+    s = run(s, { type: 'negAccept' }, 'ana');
+    expect(s.phase).toBe('RONDA_CERRADA');
+    expect(s.board.flat().filter(Boolean)).toHaveLength(5);
+  });
+});

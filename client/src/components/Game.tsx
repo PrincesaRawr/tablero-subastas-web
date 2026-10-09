@@ -57,7 +57,12 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
   const amNegotiator = !!neg?.picks;
   const bothReady = !!neg && neg.players.every((p) => neg.ready[p]);
   const sixTokens = useMemo<Color[]>(
-    () => (amNegotiator && bothReady ? neg!.players.flatMap((p) => neg!.picks![p]!.map((i) => neg!.tokens[p][i])) : NO_TOKENS),
+    () =>
+      !amNegotiator || !bothReady
+        ? NO_TOKENS
+        : neg!.shared
+          ? neg!.tokens[neg!.players[0]]
+          : neg!.players.flatMap((p) => neg!.picks![p]!.map((i) => neg!.tokens[p][i])),
     [amNegotiator, bothReady, neg],
   );
   const [counter, setCounter] = useState(false);
@@ -440,7 +445,7 @@ function Reveal({ g, nameOf }: { g: GameView; nameOf: NameOf }) {
       <h2>Resultado de la subasta</h2>
       <ul className="reveal-list">
         {(['A', 'B'] as const).map((id, i) => (
-          <li key={id} className={`reveal-item${r.recipient?.auction === id ? ' won' : ''}`} style={{ animationDelay: `${i * 350}ms` }}>
+          <li key={id} className={`reveal-item${r.recipient?.auction === id || r.sharedAuction === id ? ' won' : ''}`} style={{ animationDelay: `${i * 350}ms` }}>
             {winnerLine(r, id, nameOf)}
           </li>
         ))}
@@ -532,13 +537,23 @@ function NegotiationPanel({ view, g, nameOf, negDraft, sixTokens, drafting, onCo
       {!amIn ? (
         <>
           <p>
-            {joinNames(n.players.map(nameOf))} están negociando cómo colocar 6 fichas.
+            {joinNames(n.players.map(nameOf))} están negociando cómo colocar {n.shared ? 5 : 6} fichas.
           </p>
-          {status}
+          {!n.shared && status}
           {n.hasProposal && <p className="muted">Hay una propuesta de {nameOf(n.proposalBy!)} sobre la mesa.</p>}
         </>
       ) : (
         <>
+          {n.shared ? (
+            <>
+              <p className="hint">
+                Habéis empatado en la misma subasta: entre los dos tenéis que decidir dónde van estas 5 fichas.
+                Cualquiera puede proponer y el otro acepta o rechaza.
+              </p>
+              <TokenRow tokens={n.tokens[me]} size={34} label="Fichas a colocar" />
+            </>
+          ) : (
+          <>
           <p className="hint">
             Elige {NEGOTIATION_PICK} de tus 5 fichas. Después, cualquiera de los dos puede proponer dónde van las 6.
           </p>
@@ -571,6 +586,8 @@ function NegotiationPanel({ view, g, nameOf, negDraft, sixTokens, drafting, onCo
             size={30}
           />
           {status}
+          </>
+          )}
 
           {drafting && (
             <>

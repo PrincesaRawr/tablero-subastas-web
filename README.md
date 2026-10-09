@@ -101,7 +101,7 @@ Todo está en `shared/config.ts` para que lo puedas cambiar.
 | D1 | Colores | `COLORS`: rosa, azul, naranja, verde, morado. |
 | D2 | Combinaciones | 3 colores distintos (`COMBO_LENGTH`), únicas y sin inversas entre jugadores. Caben hasta 30 jugadores (`MAX_DISTINCT_COMBOS`). |
 | D3 | Puja válida | Entero ≥ `MIN_BID` (1) en cada subasta en la que participas (0 = no participas). A + B ≤ tus monedas. Con 0 monedas no se puede pujar. |
-| D4 | Empate dentro de una subasta | Desempate aleatorio del servidor. Se anuncia a todos ("desempate al azar con …"). |
+| D4 | Empate dentro de una subasta | **Cambiado a petición:** si empatan exactamente 2 y esa subasta es la que da fichas, negocian juntas dónde colocar sus 5 fichas (sin elegir 3); las dos pierden la puja y, sin acuerdo, la ronda es nula. Con 3 o más empatadas, o si las dos subastas acaban con la misma puja, desempate aleatorio anunciado a todos. Se puede volver a "siempre al azar" con `SAME_AUCTION_TIE_NEGOTIATES = false`. |
 | D5 | El mismo jugador gana A y B | Recibe las fichas de la subasta donde pujó menos y pierde ambas pujas. Si pujó lo mismo en las dos, elige él (fase RESOLUCION). |
 | D6 | Solo un ganador | Recibe sus fichas y pierde su puja. |
 | D7 | Nadie puja | La ronda pasa sin efecto y las fichas se descartan. |

@@ -32,6 +32,8 @@ export interface PublicNegotiation {
   proposalBy: string | null;
   rejectedBy: string | null;
   deadline: number;
+  /** Empate en la misma subasta: colocan juntos las 5 fichas, sin elegir. */
+  shared: boolean;
   /** Solo para los dos negociadores: */
   picks?: Record<string, number[] | null>;
   proposal?: Placement[] | null;
@@ -94,6 +96,7 @@ export function buildView(room: RoomSnapshot, viewerId: string, now: number): Cl
       proposalBy: n.proposal?.by ?? null,
       rejectedBy: n.rejectedBy,
       deadline: n.deadline,
+      shared: n.shared,
     };
     if (n.players.includes(viewerId)) {
       negotiation.picks = { ...n.picks };

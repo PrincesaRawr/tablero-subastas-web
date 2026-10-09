@@ -9,6 +9,7 @@ import {
   COLUMN_LETTERS,
   COMBO_LENGTH,
   MIN_BID,
+  SAME_AUCTION_TIE_NEGOTIATES,
   type Color,
 } from './config.js';
 
@@ -160,7 +161,9 @@ export function validateBid(coins: number, bid: Bid): string | null {
 export interface AuctionWinner {
   playerId: string;
   bid: number;
-  /** [D4] Otros jugadores que empataron con la puja máxima (desempate aleatorio). */
+  /** Empate exacto de 2 en la misma subasta: la otra persona empatada (negociarán si esta subasta da fichas). */
+  coWinner: string | null;
+  /** [D4] Otros jugadores que empataron con la puja máxima y perdieron el desempate aleatorio. */
   tiedWith: string[];
 }
 
@@ -169,6 +172,7 @@ export type ResolutionOutcome =
   | 'single' // [D6] solo una subasta tuvo pujas
   | 'normal' // dos ganadores distintos; recibe el que pujó menos
   | 'tie' // dos ganadores distintos con la misma puja → negociación
+  | 'shared-tie' // dos personas empataron en la subasta que da fichas → negocian sus 5 fichas
   | 'same-player' // [D5] el mismo jugador ganó ambas, con pujas distintas
   | 'same-player-choice'; // [D5] el mismo jugador ganó ambas con la misma puja: elige él
 
@@ -177,6 +181,8 @@ export interface Resolution {
   outcome: ResolutionOutcome;
   /** Quién recibe fichas y de qué subasta (null si nadie o si queda pendiente). */
   recipient: { playerId: string; auction: AuctionId } | null;
+  /** En 'shared-tie': la subasta cuyas 5 fichas se negocian. */
+  sharedAuction: AuctionId | null;
   /** Monedas que pierde cada jugador. Solo los ganadores pierden su puja ganadora. */
   coinsLost: Record<string, number>;
 }
@@ -194,34 +200,49 @@ function auctionWinner(bids: Record<string, Bid>, id: AuctionId, rng: Rng): Auct
   }
   if (top.length === 0) return null;
   top.sort(); // independiza el resultado del orden de inserción
+  if (top.length === 2 && SAME_AUCTION_TIE_NEGOTIATES) return { playerId: top[0], bid: max, coWinner: top[1], tiedWith: [] };
   const winner = top[randomInt(rng, top.length)];
-  return { playerId: winner, bid: max, tiedWith: top.filter((p) => p !== winner) };
+  return { playerId: winner, bid: max, coWinner: null, tiedWith: top.filter((p) => p !== winner) };
+}
+
+/** Convierte una pareja empatada en un único ganador al azar (D4). */
+function breakPair(w: AuctionWinner, rng: Rng): AuctionWinner {
+  if (!w.coWinner) return w;
+  const pair = [w.playerId, w.coWinner];
+  const winner = pair[randomInt(rng, 2)];
+  return { playerId: winner, bid: w.bid, coWinner: null, tiedWith: pair.filter((p) => p !== winner) };
 }
 
 export function resolveAuctions(bids: Record<string, Bid>, rng: Rng): Resolution {
-  const A = auctionWinner(bids, 'A', rng);
-  const B = auctionWinner(bids, 'B', rng);
+  let A = auctionWinner(bids, 'A', rng);
+  let B = auctionWinner(bids, 'B', rng);
+  // Si las dos subastas acaban con la misma puja, ya hay negociación entre ganadores:
+  // las parejas empatadas se deshacen al azar para no mezclar dos negociaciones.
+  if (A && B && A.bid === B.bid) {
+    A = breakPair(A, rng);
+    B = breakPair(B, rng);
+  }
   const winners = { A, B };
   const coinsLost: Record<string, number> = {};
-  for (const w of [A, B]) if (w) coinsLost[w.playerId] = (coinsLost[w.playerId] ?? 0) + w.bid;
+  for (const w of [A, B]) {
+    if (!w) continue;
+    for (const p of w.coWinner ? [w.playerId, w.coWinner] : [w.playerId]) coinsLost[p] = (coinsLost[p] ?? 0) + w.bid;
+  }
+  const base = { winners, coinsLost, sharedAuction: null };
+  /** La subasta `auction` da fichas: a su ganador o, si es una pareja empatada, a negociar. */
+  const give = (outcome: ResolutionOutcome, auction: AuctionId): Resolution =>
+    winners[auction]!.coWinner
+      ? { ...base, outcome: 'shared-tie', recipient: null, sharedAuction: auction }
+      : { ...base, outcome, recipient: { playerId: winners[auction]!.playerId, auction } };
 
-  if (!A && !B) return { winners, outcome: 'none', recipient: null, coinsLost };
-  if (!A || !B) {
-    const w = (A ?? B)!;
-    return { winners, outcome: 'single', recipient: { playerId: w.playerId, auction: A ? 'A' : 'B' }, coinsLost };
+  if (!A && !B) return { ...base, outcome: 'none', recipient: null };
+  if (!A || !B) return give('single', A ? 'A' : 'B');
+  if (A.playerId === B.playerId && !A.coWinner && !B.coWinner) {
+    if (A.bid === B.bid) return { ...base, outcome: 'same-player-choice', recipient: null };
+    return give('same-player', A.bid < B.bid ? 'A' : 'B');
   }
-  if (A.playerId === B.playerId) {
-    if (A.bid === B.bid) return { winners, outcome: 'same-player-choice', recipient: null, coinsLost };
-    return {
-      winners,
-      outcome: 'same-player',
-      recipient: { playerId: A.playerId, auction: A.bid < B.bid ? 'A' : 'B' },
-      coinsLost,
-    };
-  }
-  if (A.bid === B.bid) return { winners, outcome: 'tie', recipient: null, coinsLost };
-  const auction: AuctionId = A.bid < B.bid ? 'A' : 'B';
-  return { winners, outcome: 'normal', recipient: { playerId: winners[auction]!.playerId, auction }, coinsLost };
+  if (A.bid === B.bid) return { ...base, outcome: 'tie', recipient: null };
+  return give('normal', A.bid < B.bid ? 'A' : 'B');
 }
 
 /** Descuenta las monedas perdidas. El resto de pujas simplemente no se cobran. */

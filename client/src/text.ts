@@ -33,6 +33,10 @@ export function resolutionVerdict(r: PublicResolution, nameOf: NameOf): string {
       return `Solo hubo pujas en una subasta: ${nameOf(r.recipient!.playerId)} se lleva las fichas de ${r.recipient!.auction}.`;
     case 'normal':
       return `${nameOf(r.recipient!.playerId)} pujó menos y se lleva las fichas de ${r.recipient!.auction}. Las de ${r.recipient!.auction === 'A' ? 'B' : 'A'} se eliminan.`;
+    case 'shared-tie': {
+      const w = r.winners[r.sharedAuction!]!;
+      return `¡Empate en la subasta ${r.sharedAuction}! ${nameOf(w.playerId)} y ${nameOf(w.coWinner!)} tienen que ponerse de acuerdo para colocar sus 5 fichas.`;
+    }
     case 'tie':
       return `¡Empate! ${nameOf(r.winners.A!.playerId)} y ${nameOf(r.winners.B!.playerId)} tienen que negociar.`;
     case 'same-player':
@@ -47,6 +51,7 @@ export function resolutionVerdict(r: PublicResolution, nameOf: NameOf): string {
 export function winnerLine(r: PublicResolution, id: 'A' | 'B', nameOf: NameOf): string {
   const w = r.winners[id];
   if (!w) return `Subasta ${id}: sin pujas`;
+  if (w.coWinner) return `Subasta ${id}: empate entre ${nameOf(w.playerId)} y ${nameOf(w.coWinner)} (${w.bid})`;
   const tie = w.tiedWith.length ? ` · desempate al azar con ${joinNames(w.tiedWith.map(nameOf))}` : '';
   return `Subasta ${id}: ${nameOf(w.playerId)} (${w.bid})${tie}`;
 }
