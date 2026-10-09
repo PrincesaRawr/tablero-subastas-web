@@ -101,12 +101,12 @@ Todo está en `shared/config.ts` para que lo puedas cambiar.
 | D1 | Colores | `COLORS`: rosa, azul, naranja, verde, morado. |
 | D2 | Combinaciones | 3 colores distintos (`COMBO_LENGTH`), únicas y sin inversas entre jugadores. Caben hasta 30 jugadores (`MAX_DISTINCT_COMBOS`). |
 | D3 | Puja válida | Entero ≥ `MIN_BID` (1) en cada subasta en la que participas (0 = no participas). A + B ≤ tus monedas. Con 0 monedas no se puede pujar. |
-| D4 | Empate dentro de una subasta | **Cambiado a petición:** si empatan exactamente 2 y esa subasta es la que da fichas, cada una elige `SHARED_TIE_PICK` (2) de las 5 fichas, sin poder coger las que ya eligió la otra, y las coloca ella misma a la vez (sin propuestas ni aceptar). La quinta ficha se descarta y las dos pierden la puja. Si se acaba el tiempo, quien ya colocó conserva sus fichas y las del otro se descartan. Con 3 o más empatadas, o si las dos subastas acaban con la misma puja, desempate aleatorio anunciado a todos. Se puede volver a "siempre al azar" con `SAME_AUCTION_TIE_NEGOTIATES = false`. |
+| D4 | Empate dentro de una subasta | **Cambiado a petición:** si empatan exactamente 2 y esa subasta es la que da fichas, negocian (ver D9) eligiendo cada una `SHARED_TIE_PICK` (2) de las 5 fichas sin repetir las de la otra; la quinta se descarta y las dos pierden la puja. Con 3 o más empatadas, o si las dos subastas acaban con la misma puja, desempate aleatorio anunciado a todos. `SAME_AUCTION_TIE_NEGOTIATES = false` vuelve a "siempre al azar". |
 | D5 | El mismo jugador gana A y B | Recibe las fichas de la subasta donde pujó menos y pierde ambas pujas. Si pujó lo mismo en las dos, elige él (fase RESOLUCION). |
 | D6 | Solo un ganador | Recibe sus fichas y pierde su puja. |
 | D7 | Nadie puja | La ronda pasa sin efecto y las fichas se descartan. |
 | D8 | Casillas | Solo casillas vacías; nunca se sustituyen fichas. |
-| D9 | Negociación | Límite de `NEGOTIATION_TIME_LIMIT_S` = 120 s. Si expira o alguien declara "sin acuerdo", la ronda es nula y los dos pierden su puja. |
+| D9 | Negociación | **Cambiado a petición:** cada negociador elige sus fichas (3 de las suyas si ganaron A y B con la misma puja; 2 sin repetir si empataron en la misma subasta) y coloca **solo las suyas**. El otro las ve en tiempo real (en dorado). Cuando los dos pulsan «Estoy de acuerdo» se aplican; cualquier cambio posterior anula el visto bueno. «Sin acuerdo» o fin del tiempo (`NEGOTIATION_TIME_LIMIT_S` = 120 s) → ronda nula y ambos pierden su puja. |
 | D10 | Empate al final | Ganan todos los empatados. |
 | D11 | Jugadores | `MIN_PLAYERS` = 2, `MAX_PLAYERS` = 12. |
 | D12 | Revelación | Solo se muestran las pujas de los dos ganadores (y con quién empataron en D4). Las demás nunca salen del servidor. |
@@ -121,10 +121,7 @@ Todo está en `shared/config.ts` para que lo puedas cambiar.
   - Si se agota el de pujas, la subasta se cierra sola.
   - Si se agota el de colocación, las fichas se colocan al azar.
   - Sin límite, el anfitrión puede forzar la colocación aleatoria cuando quiera (pide confirmación).
-- **Negociación**:
-  - Cada uno puede cambiar sus 3 fichas, pero hacerlo anula la propuesta que hubiera.
-  - Cuando los dos han elegido, cualquiera puede proponer. Una propuesta nueva sustituye a la anterior y solo la otra persona puede aceptarla.
-  - Los demás jugadores ven quién negocia, si ya han elegido fichas y si hay una propuesta, pero no qué fichas eligieron ni dónde van. La colocación se hace pública al aceptarse.
+- **Negociación**: cambiar las fichas elegidas borra tu colocación provisional. Los demás jugadores ven quién negocia, si ya han elegido y quién está de acuerdo, pero no qué fichas ni dónde hasta que se aplican.
 - **Entrar y salir**:
   - Solo se puede entrar en la sala desde el lobby (no hay espectadores) y los nombres no se pueden repetir dentro de una sala.
   - Solo se expulsa desde el lobby.

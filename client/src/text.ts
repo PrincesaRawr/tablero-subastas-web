@@ -36,7 +36,7 @@ export function resolutionVerdict(r: PublicResolution, nameOf: NameOf): string {
       return `${nameOf(r.recipient!.playerId)} pujó menos y se lleva las fichas de ${r.recipient!.auction}. Las de ${r.recipient!.auction === 'A' ? 'B' : 'A'} se eliminan.`;
     case 'shared-tie': {
       const w = r.winners[r.sharedAuction!]!;
-      return `¡Empate en la subasta ${r.sharedAuction}! ${nameOf(w.playerId)} y ${nameOf(w.coWinner!)} eligen ${SHARED_TIE_PICK} fichas cada una (sin repetir) y las colocan a la vez.`;
+      return `¡Empate en la subasta ${r.sharedAuction}! ${nameOf(w.playerId)} y ${nameOf(w.coWinner!)} eligen ${SHARED_TIE_PICK} fichas cada una (sin repetir) y tienen que ponerse de acuerdo para colocarlas.`;
     }
     case 'tie':
       return `¡Empate! ${nameOf(r.winners.A!.playerId)} y ${nameOf(r.winners.B!.playerId)} tienen que negociar.`;
@@ -71,8 +71,6 @@ export function logText(e: LogEntry, nameOf: NameOf): string {
       const diff = e.to - e.from;
       return `🪙 El anfitrión ${diff > 0 ? `ha dado ${diff}` : `ha quitado ${-diff}`} ${Math.abs(diff) === 1 ? 'moneda' : 'monedas'} a ${nameOf(e.playerId)} (${e.from} → ${e.to}).`;
     }
-    case 'missed':
-      return `⏱ ${joinNames(e.playerIds.map(nameOf))} no colocó a tiempo: sus fichas se descartan.`;
     case 'ended':
       return '🏁 El anfitrión ha terminado la partida antes de tiempo.';
   }

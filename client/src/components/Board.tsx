@@ -7,6 +7,8 @@ interface BoardProps {
   /** Fichas provisionales (colocación en curso o propuesta de negociación). */
   ghosts?: Placement[];
   ghostKind?: 'draft' | 'proposal';
+  /** Fichas provisionales de la otra persona (negociación en tiempo real), en dorado. */
+  otherGhosts?: Placement[];
   /** Apariciones a resaltar (cada una, lista ordenada de casillas). */
   highlights?: Cell[][];
   /** Casillas recién colocadas (para animarlas). */
@@ -73,8 +75,9 @@ function HighlightLayer({ highlights }: { highlights: Cell[][] }) {
   );
 }
 
-export function Board({ board, ghosts = [], ghostKind = 'draft', highlights = [], recent = [], onCellClick }: BoardProps) {
+export function Board({ board, ghosts = [], ghostKind = 'draft', otherGhosts = [], highlights = [], recent = [], onCellClick }: BoardProps) {
   const ghostAt = new Map(ghosts.map((g) => [`${g.row},${g.col}`, g.color]));
+  const otherAt = new Map(otherGhosts.map((g) => [`${g.row},${g.col}`, g.color]));
   const recentSet = new Set(recent.map((c) => `${c.row},${c.col}`));
 
   return (
@@ -109,10 +112,13 @@ export function Board({ board, ghosts = [], ghostKind = 'draft', highlights = []
               </span>
               {row.map((color, c) => {
                 const key = `${r},${c}`;
-                const ghost = ghostAt.get(key);
+                const mineGhost = ghostAt.get(key);
+                const otherGhost = otherAt.get(key);
+                const ghost = mineGhost ?? otherGhost;
+                const kind = mineGhost ? ghostKind : 'proposal';
                 const shown: Color | null = color ?? ghost ?? null;
                 const name = cellName(r, c);
-                const clickable = !!onCellClick && (color === null || !!ghost);
+                const clickable = !!onCellClick && color === null && !otherGhost;
                 const label = color
                   ? `${name}: ${COLOR_LABEL[color]}`
                   : ghost
@@ -123,7 +129,7 @@ export function Board({ board, ghosts = [], ghostKind = 'draft', highlights = []
                     key={c}
                     type="button"
                     role="gridcell"
-                    className={`cell${clickable ? ' clickable' : ''}${ghost && !color ? ` ghost ghost-${ghostKind}` : ''}`}
+                    className={`cell${clickable ? ' clickable' : ''}${ghost && !color ? ` ghost ghost-${kind}` : ''}`}
                     aria-label={label}
                     title={label}
                     disabled={!clickable}

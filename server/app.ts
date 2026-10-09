@@ -59,7 +59,7 @@ export interface RunningServer {
 
 const CLIENT_ACTIONS = new Set<GameAction['type']>([
   'deal', 'open', 'bid', 'close', 'choose', 'place', 'forceRandom', 'next',
-  'negPick', 'negPlace', 'negPropose', 'negAccept', 'negReject', 'negNoDeal',
+  'negPick', 'negSet', 'negAgree', 'negNoDeal',
   'peek', 'setCoins', 'endNow',
 ]);
 

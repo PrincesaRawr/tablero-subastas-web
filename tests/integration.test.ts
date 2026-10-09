@@ -127,12 +127,18 @@ describe('partida completa con 3 clientes Socket.IO', () => {
         await settle(clients, (v) => v.game?.phase === 'NEGOCIACION');
         // los no negociadores no ven ni la elección ni la propuesta
         expect(evaClient.view().game!.negotiation!.picks).toBeUndefined();
+        expect(evaClient.view().game!.negotiation!.live).toBeUndefined();
         await ok(host, 'game:action', { type: 'negPick', indices: [0, 1, 2] });
         await ok(luis, 'game:action', { type: 'negPick', indices: [2, 3, 4] });
         const n = (await luis.waitFor((v) => !!v.game?.negotiation?.ready[ids.Ana])).game!.negotiation!;
-        const six = n.players.flatMap((p) => n.picks![p]!.map((i) => n.tokens[p][i]));
-        await ok(luis, 'game:action', { type: 'negPropose', placements: firstFree(luis.view(), six) });
-        await ok(host, 'game:action', { type: 'negAccept' });
+        const mine = (id: string) => n.picks![id]!.map((i) => n.tokens[id][i]);
+        const cells = freeCells(luis.view().game!.board);
+        await ok(host, 'game:action', { type: 'negSet', placements: mine(ids.Ana).map((color, i) => ({ color, ...cells[i] })) });
+        // Luis ve en tiempo real lo que va colocando Ana
+        await luis.waitFor((v) => v.game!.negotiation!.live![ids.Ana].length === 3);
+        await ok(luis, 'game:action', { type: 'negSet', placements: mine(ids.Luis).map((color, i) => ({ color, ...cells[i + 3] })) });
+        await ok(host, 'game:action', { type: 'negAgree' });
+        await ok(luis, 'game:action', { type: 'negAgree' });
       } else if (round === 5) {
         // Eva puja y recarga la página: recupera su sitio con el token
         await ok(host, 'game:action', { type: 'bid', bid: { A: 1, B: 0 } });

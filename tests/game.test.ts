@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NEGOTIATION_TIME_LIMIT_S, STARTING_COINS, TOTAL_ROUNDS } from '../shared/config.js';
-import { createGame, gameReducer, negotiationTokens, type GameAction, type GameState } from '../shared/game.js';
+import { createGame, gameReducer, myTokens, type GameAction, type GameState } from '../shared/game.js';
 import { freeCells, type Placement } from '../shared/engine.js';
 import { seeded } from './helpers.js';
 
@@ -118,7 +118,13 @@ describe('máquina de estados de la partida', () => {
   });
 });
 
-describe('negociación', () => {
+/** Celdas libres consecutivas a partir de la n-ésima libre. */
+function freeFrom(s: GameState, tokens: GameState['board'][number], skip: number): Placement[] {
+  const cells = freeCells(s.board).slice(skip);
+  return tokens.map((color, i) => ({ color: color!, ...cells[i] }));
+}
+
+describe('negociación (ganan A y B con la misma puja)', () => {
   function toNegotiation() {
     let s = toOpenAuction(createGame(['ana', 'luis', 'eva'], seeded(9)));
     s = run(s, { type: 'bid', bid: { A: 10, B: 0 } }, 'ana');
@@ -128,27 +134,40 @@ describe('negociación', () => {
     return s;
   }
 
-  it('empate → negociación; cobra a los dos; acuerdo coloca las 6 fichas', () => {
+  it('cada uno elige 3 de sus fichas, coloca solo las suyas y al estar los dos de acuerdo se aplican', () => {
     let s = toNegotiation();
     expect(s.phase).toBe('NEGOCIACION');
-    expect(s.negotiation!.players).toEqual(['ana', 'luis']);
+    expect(s.negotiation!.shared).toBe(false);
     expect(s.players.map((p) => p.coins)).toEqual([30, 30, 40]);
 
     expect(tryRun(s, { type: 'negPick', indices: [0, 1] }, 'ana')).toMatchObject({ ok: false });
     expect(tryRun(s, { type: 'negPick', indices: [0, 1, 2] }, 'eva')).toMatchObject({ ok: false });
+    expect(tryRun(s, { type: 'negSet', placements: [] }, 'ana')).toMatchObject({ ok: false }); // aún no ha elegido
     s = run(s, { type: 'negPick', indices: [0, 1, 2] }, 'ana');
-    expect(tryRun(s, { type: 'negPropose', placements: [] }, 'ana')).toMatchObject({ ok: false });
     s = run(s, { type: 'negPick', indices: [4, 3, 2] }, 'luis');
     expect(s.negotiation!.picks.luis).toEqual([2, 3, 4]);
+    const ana = myTokens(s.negotiation!, 'ana');
+    const luis = myTokens(s.negotiation!, 'luis');
 
-    const six = negotiationTokens(s.negotiation!);
-    expect(six).toHaveLength(6);
-    s = run(s, { type: 'negPropose', placements: firstFree(s, six) }, 'ana');
-    expect(tryRun(s, { type: 'negAccept' }, 'ana')).toMatchObject({ ok: false });
-    s = run(s, { type: 'negReject' }, 'luis');
-    expect(s.negotiation!.proposal).toBeNull();
-    s = run(s, { type: 'negPropose', placements: firstFree(s, six).reverse() }, 'luis');
-    s = run(s, { type: 'negAccept' }, 'ana');
+    // colocación en tiempo real y parcial
+    s = run(s, { type: 'negSet', placements: freeFrom(s, ana.slice(0, 1), 0) }, 'ana');
+    expect(s.negotiation!.live.ana).toHaveLength(1);
+    // Luis no puede usar las fichas de Ana ni su casilla
+    expect(tryRun(s, { type: 'negSet', placements: freeFrom(s, [...luis, ana[0]], 10) }, 'luis')).toMatchObject({ ok: false });
+    expect(tryRun(s, { type: 'negSet', placements: freeFrom(s, luis.slice(0, 1), 0) }, 'luis')).toEqual({
+      ok: false,
+      error: 'Esa casilla ya está ocupada.',
+    });
+    s = run(s, { type: 'negSet', placements: freeFrom(s, ana, 0) }, 'ana');
+    expect(tryRun(s, { type: 'negAgree' }, 'ana')).toEqual({ ok: false, error: 'Espera a que la otra persona coloque todas sus fichas.' });
+    s = run(s, { type: 'negSet', placements: freeFrom(s, luis, 3) }, 'luis');
+    s = run(s, { type: 'negAgree' }, 'ana');
+    expect(s.phase).toBe('NEGOCIACION');
+    // si Luis cambia algo, Ana tiene que volver a estar de acuerdo
+    s = run(s, { type: 'negSet', placements: freeFrom(s, luis, 4) }, 'luis');
+    expect(s.negotiation!.agreed).toEqual({ ana: false, luis: false });
+    s = run(s, { type: 'negAgree' }, 'luis');
+    s = run(s, { type: 'negAgree' }, 'ana');
     expect(s.phase).toBe('RONDA_CERRADA');
     expect(s.board.flat().filter(Boolean)).toHaveLength(6);
     expect(s.log.at(-1)).toMatchObject({ type: 'placement', playerIds: ['ana', 'luis'] });
@@ -156,6 +175,8 @@ describe('negociación', () => {
 
   it('"sin acuerdo" → ronda nula, nadie coloca y ambos pierden la puja', () => {
     let s = toNegotiation();
+    s = run(s, { type: 'negPick', indices: [0, 1, 2] }, 'ana');
+    s = run(s, { type: 'negSet', placements: freeFrom(s, myTokens(s.negotiation!, 'ana'), 0) }, 'ana');
     s = run(s, { type: 'negNoDeal' }, 'luis');
     expect(s.phase).toBe('RONDA_CERRADA');
     expect(s.board.flat().every((c) => c === null)).toBe(true);
@@ -164,12 +185,10 @@ describe('negociación', () => {
   });
 
   it('si expira el tiempo (D9) → ronda nula', () => {
-    let s = toNegotiation();
+    const s = toNegotiation();
     expect(s.negotiation!.deadline).toBe(clock + NEGOTIATION_TIME_LIMIT_S * 1000);
     expect(tryRun(s, { type: 'negExpire' }, null)).toMatchObject({ ok: false }); // aún no ha caducado
-    const r = gameReducer(s, { type: 'negExpire' }, {
-      actorId: null, isHost: false, rng: seeded(1), now: s.negotiation!.deadline, settings,
-    });
+    const r = gameReducer(s, { type: 'negExpire' }, { actorId: null, isHost: false, rng: seeded(1), now: s.negotiation!.deadline, settings });
     expect(r.ok && r.state.phase).toBe('RONDA_CERRADA');
     expect(r.ok && r.state.log.at(-1)).toMatchObject({ type: 'null-round', reason: 'tiempo' });
   });
@@ -183,43 +202,31 @@ describe('empate en la misma subasta', () => {
     return run(s, { type: 'close' }, 'host', true);
   }
 
-  it('cada uno elige 2 fichas distintas a las del otro y las coloca a la vez', () => {
+  it('cada uno elige 2 fichas distintas a las del otro, coloca las suyas y tienen que estar de acuerdo', () => {
     let s = toSharedTie();
     expect(s.phase).toBe('NEGOCIACION');
     expect(s.negotiation!.shared).toBe(true);
     expect(s.players.map((p) => p.coins)).toEqual([36, 36, 40]);
-    const pool = s.auction!.A;
 
     expect(tryRun(s, { type: 'negPick', indices: [0, 1, 2] }, 'ana')).toMatchObject({ ok: false });
-    expect(tryRun(s, { type: 'negPick', indices: [0, 1] }, 'eva')).toMatchObject({ ok: false });
     s = run(s, { type: 'negPick', indices: [0, 1] }, 'ana');
     expect(tryRun(s, { type: 'negPick', indices: [1, 2] }, 'luis')).toEqual({
       ok: false,
       error: 'Esa ficha ya la ha elegido la otra persona.',
     });
     s = run(s, { type: 'negPick', indices: [3, 4] }, 'luis');
-    // no hay propuestas en este modo
-    expect(tryRun(s, { type: 'negPropose', placements: [] }, 'ana')).toMatchObject({ ok: false });
-
-    // Luis coloca primero; Ana no puede usar sus casillas
-    s = run(s, { type: 'negPlace', placements: firstFree(s, [pool[3], pool[4]]) }, 'luis');
-    expect(s.phase).toBe('NEGOCIACION');
-    expect(s.board.flat().filter(Boolean)).toHaveLength(2);
-    expect(tryRun(s, { type: 'negPick', indices: [2, 3] }, 'luis')).toMatchObject({ ok: false }); // ya colocó
-    expect(tryRun(s, { type: 'negPlace', placements: firstFree(s, [pool[3], pool[4]]) }, 'ana')).toMatchObject({ ok: false });
-    s = run(s, { type: 'negPlace', placements: firstFree(s, [pool[0], pool[1]]) }, 'ana');
+    s = run(s, { type: 'negSet', placements: freeFrom(s, myTokens(s.negotiation!, 'luis'), 0) }, 'luis');
+    s = run(s, { type: 'negSet', placements: freeFrom(s, myTokens(s.negotiation!, 'ana'), 2) }, 'ana');
+    s = run(s, { type: 'negAgree' }, 'ana');
+    s = run(s, { type: 'negAgree' }, 'luis');
     expect(s.phase).toBe('RONDA_CERRADA');
     expect(s.board.flat().filter(Boolean)).toHaveLength(4); // la quinta ficha se descarta
   });
 
-  it('si se acaba el tiempo, quien colocó conserva sus fichas y el otro las pierde', () => {
+  it('también se puede declarar sin acuerdo', () => {
     let s = toSharedTie();
-    const pool = s.auction!.A;
-    s = run(s, { type: 'negPick', indices: [0, 1] }, 'ana');
-    s = run(s, { type: 'negPlace', placements: firstFree(s, [pool[0], pool[1]]) }, 'ana');
-    const r = gameReducer(s, { type: 'negExpire' }, { actorId: null, isHost: false, rng: seeded(1), now: s.negotiation!.deadline, settings });
-    expect(r.ok && r.state.phase).toBe('RONDA_CERRADA');
-    expect(r.ok && r.state.board.flat().filter(Boolean)).toHaveLength(2);
-    expect(r.ok && r.state.log.at(-1)).toEqual({ type: 'missed', round: 1, playerIds: ['luis'] });
+    s = run(s, { type: 'negNoDeal' }, 'ana');
+    expect(s.phase).toBe('RONDA_CERRADA');
+    expect(s.log.at(-1)).toMatchObject({ type: 'null-round', reason: 'sin-acuerdo' });
   });
 });

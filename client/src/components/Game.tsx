@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NEGOTIATION_PICK, SHARED_TIE_PICK, type Color } from '../../../shared/config';
-import { applyPlacements, findOccurrences, type Cell } from '../../../shared/engine';
+import { applyPlacements, findOccurrences, type Cell, type Placement } from '../../../shared/engine';
 import type { ClientView } from '../../../shared/view';
 import type { PeekedBid } from '../../../shared/protocol';
 import { act, call, forgetSession, showToast } from '../store';
@@ -52,47 +52,47 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
   const placeTokens = placingMe ? g.placement!.tokens : NO_TOKENS;
   const placeDraft = usePlacementDraft(placeTokens, `${g.round}-${placingMe}`);
 
-  // ── negociación ──
+  // ── negociación: cada uno coloca sus fichas y el otro las ve en tiempo real ──
   const neg = g.negotiation;
   const amNegotiator = !!neg?.picks;
-  const bothReady = !!neg && neg.players.every((p) => neg.ready[p]);
-  const sixTokens = useMemo<Color[]>(
-    () =>
-      !amNegotiator
-        ? NO_TOKENS
-        : neg!.shared
-          ? // empate en la misma subasta: solo coloco mis fichas elegidas
-            neg!.picks![me.id] && !neg!.placed[me.id]
-            ? neg!.picks![me.id]!.map((i) => neg!.tokens[me.id][i])
-            : NO_TOKENS
-          : bothReady
-            ? neg!.players.flatMap((p) => neg!.picks![p]!.map((i) => neg!.tokens[p][i]))
-            : NO_TOKENS,
-    [amNegotiator, bothReady, neg, me.id],
+  const otherId = neg?.players.find((p) => p !== me.id) ?? '';
+  const myNegTokens = useMemo<Color[]>(
+    () => (amNegotiator && neg!.picks![me.id] ? neg!.picks![me.id]!.map((i) => neg!.tokens[me.id][i]) : NO_TOKENS),
+    [amNegotiator, neg, me.id],
   );
-  const [counter, setCounter] = useState(false);
-  useEffect(() => setCounter(false), [neg?.proposalBy, neg?.hasProposal, g.round]);
-  const drafting = amNegotiator && (neg!.shared ? sixTokens.length > 0 : bothReady && (!neg!.hasProposal || counter));
-  const negDraft = usePlacementDraft(sixTokens, `${g.round}-${sixTokens.join()}`);
+  const myLive = (amNegotiator && neg!.live![me.id]) || NO_PLACEMENTS;
+  const otherLive = (amNegotiator && neg!.live![otherId]) || NO_PLACEMENTS;
+  const usedIdx = usedTokenIndices(myNegTokens, myLive);
+  const [negSelected, setNegSelected] = useState<number | null>(null);
+  useEffect(() => setNegSelected(null), [g.round, myNegTokens.join()]);
+  const negClick = (cell: Cell) => {
+    const mine = myLive.find((p) => p.row === cell.row && p.col === cell.col);
+    if (mine) {
+      act({ type: 'negSet', placements: myLive.filter((p) => p !== mine) });
+      return;
+    }
+    const free = myNegTokens.map((_, i) => i).filter((i) => !usedIdx.has(i));
+    const idx = negSelected !== null && free.includes(negSelected) ? negSelected : free[0];
+    if (idx === undefined) return;
+    act({ type: 'negSet', placements: [...myLive, { color: myNegTokens[idx], ...cell }] });
+    setNegSelected(null);
+  };
 
   // ── tablero: fichas provisionales, clic y resaltado ──
-  let ghosts = placingMe ? placeDraft.placements : [];
-  let ghostKind: 'draft' | 'proposal' = 'draft';
+  let ghosts = placingMe ? placeDraft.placements : NO_PLACEMENTS;
   let onCellClick: ((c: Cell) => void) | undefined = placingMe ? placeDraft.clickCell : undefined;
   if (amNegotiator) {
-    if (drafting) {
-      ghosts = negDraft.placements;
-      onCellClick = negDraft.clickCell;
-    } else if (neg!.proposal) {
-      ghosts = neg!.proposal;
-      ghostKind = 'proposal';
-    }
+    ghosts = myLive;
+    if (myNegTokens.length) onCellClick = negClick;
   }
 
   const myOccurrences = useMemo(() => (me.combo ? findOccurrences(g.board, me.combo) : []), [g.board, me.combo]);
   const previewCount = useMemo(
-    () => (me.combo && ghosts.length ? findOccurrences(applyPlacements(g.board, ghosts), me.combo).length : null),
-    [g.board, ghosts, me.combo],
+    () =>
+      me.combo && ghosts.length + otherLive.length
+        ? findOccurrences(applyPlacements(g.board, [...ghosts, ...otherLive]), me.combo).length
+        : null,
+    [g.board, ghosts, otherLive, me.combo],
   );
 
   let highlights: Cell[][] = [];
@@ -128,7 +128,14 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
 
       <div className="game-layout">
         <section className="board-col">
-          <Board board={g.board} ghosts={ghosts} ghostKind={ghostKind} highlights={highlights} recent={recent} onCellClick={onCellClick} />
+          <Board
+            board={g.board}
+            ghosts={ghosts}
+            otherGhosts={otherLive}
+            highlights={highlights}
+            recent={recent}
+            onCellClick={onCellClick}
+          />
 
           {me.combo && g.phase !== 'FIN' && (
             <ComboBar
@@ -156,10 +163,7 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
             g={g}
             nameOf={nameOf}
             placeDraft={placeDraft}
-            negDraft={negDraft}
-            sixTokens={sixTokens}
-            drafting={drafting}
-            onCounter={() => setCounter(true)}
+            neg={{ tokens: myNegTokens, used: usedIdx, selected: negSelected, select: setNegSelected, live: myLive }}
             finalHighlight={finalHighlight ?? g.results?.winners[0] ?? null}
             setFinalHighlight={setFinalHighlight}
           />
@@ -173,6 +177,25 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
 }
 
 const NO_TOKENS: Color[] = [];
+const NO_PLACEMENTS: Placement[] = [];
+
+/** Índices de mis fichas que ya están en el tablero provisional (emparejando por color). */
+function usedTokenIndices(tokens: Color[], live: Placement[]): Set<number> {
+  const used = new Set<number>();
+  for (const p of live) {
+    const i = tokens.findIndex((c, k) => c === p.color && !used.has(k));
+    if (i >= 0) used.add(i);
+  }
+  return used;
+}
+
+interface NegDraft {
+  tokens: Color[];
+  used: Set<number>;
+  selected: number | null;
+  select: (i: number) => void;
+  live: Placement[];
+}
 
 // ───────────────────────── combinación secreta ─────────────────────────
 
@@ -227,10 +250,7 @@ interface PanelProps {
   g: GameView;
   nameOf: NameOf;
   placeDraft: PlacementDraft;
-  negDraft: PlacementDraft;
-  sixTokens: Color[];
-  drafting: boolean;
-  onCounter: () => void;
+  neg: NegDraft;
   finalHighlight: string | null;
   setFinalHighlight: (id: string) => void;
 }
@@ -515,212 +535,140 @@ function PlacePanel({ view, g, nameOf, placeDraft }: PanelProps) {
   );
 }
 
-function NegotiationPanel(props: PanelProps) {
-  if (props.g.negotiation!.shared) return <SharedTiePanel {...props} />;
-  return <SplitNegotiationPanel {...props} />;
-}
-
-/** Empate en la misma subasta: cada uno elige sus fichas (sin repetir) y las coloca a la vez. */
-function SharedTiePanel({ view, g, nameOf, negDraft, sixTokens, drafting }: PanelProps) {
+function NegotiationPanel({ view, g, nameOf, neg: draft }: PanelProps) {
   const n = g.negotiation!;
   const me = view.me.id;
   const amIn = !!n.picks;
-  const other = n.players.find((p) => p !== me)!;
+  const other = n.players.find((p) => p !== me) ?? n.players[1];
+  const howMany = n.shared ? SHARED_TIE_PICK : NEGOTIATION_PICK;
   const [sel, setSel] = useState<number[]>([]);
   useEffect(() => setSel(n.picks?.[me] ?? []), [g.round, n.picks?.[me]?.join()]); // eslint-disable-line react-hooks/exhaustive-deps
-  const takenByOther = new Set(amIn ? (n.picks![other] ?? []) : []);
+  const takenByOther = new Set(amIn && n.shared ? (n.picks![other] ?? []) : []);
 
+  const count = (p: string) => (n.live?.[p]?.length ?? 0);
+  const total = (p: string) => (n.picks?.[p]?.length ?? 0);
+  const complete = (p: string) => !!n.picks?.[p] && count(p) === total(p);
   const status = (
     <ul className="neg-status">
       {n.players.map((p) => (
         <li key={p}>
-          {nameOf(p)}: {n.placed[p] ? '✓ ya ha colocado' : n.ready[p] ? 'fichas elegidas, colocando…' : 'eligiendo fichas…'}
+          {nameOf(p)}:{' '}
+          {n.agreed[p]
+            ? '✓ está de acuerdo'
+            : !n.ready[p]
+              ? 'eligiendo fichas…'
+              : amIn
+                ? `colocando (${count(p)}/${total(p)})`
+                : 'colocando…'}
         </li>
       ))}
     </ul>
   );
 
-  return (
-    <>
-      <div className="panel-head">
-        <h3>🤝 Empate en la subasta {g.resolution?.sharedAuction}</h3>
-        <Countdown deadline={n.deadline} />
-      </div>
-      {!amIn ? (
-        <p>
-          {joinNames(n.players.map(nameOf))} han empatado: cada una elige {SHARED_TIE_PICK} fichas y las coloca.
-        </p>
-      ) : n.placed[me] ? (
-        <p>✓ Ya has colocado tus fichas. Esperando a {nameOf(other)}…</p>
-      ) : (
-        <>
-          <p className="hint">
-            Elige {SHARED_TIE_PICK} de las 5 fichas. No puedes coger las que ya ha elegido {nameOf(other)}. Después
-            colócalas en el tablero; {nameOf(other)} coloca las suyas a la vez.
-          </p>
-          <div className="neg-pick" role="group" aria-label="Fichas de la subasta">
-            {n.tokens[me].map((c, i) => {
-              const on = sel.includes(i);
-              const taken = takenByOther.has(i);
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  aria-pressed={on}
-                  disabled={taken}
-                  title={taken ? `La ha elegido ${nameOf(other)}` : undefined}
-                  className={`tray-token${on ? ' selected' : ''}${taken ? ' used' : ''}`}
-                  onClick={() => setSel(on ? sel.filter((x) => x !== i) : sel.length < SHARED_TIE_PICK ? [...sel, i] : sel)}
-                >
-                  <Token color={c} size={42} />
-                </button>
-              );
-            })}
-          </div>
-          <button
-            className="btn small"
-            disabled={sel.length !== SHARED_TIE_PICK || sel.slice().sort().join() === (n.picks![me] ?? []).join()}
-            onClick={() => act({ type: 'negPick', indices: sel })}
-          >
-            {n.picks![me] ? 'Cambiar elección' : 'Confirmar elección'}
-          </button>
-          {drafting && (
-            <>
-              <h3>Coloca tus fichas</h3>
-              <DraftTray tokens={sixTokens} draft={negDraft} />
-              <button
-                className="btn primary wide"
-                disabled={!negDraft.complete}
-                onClick={() => act({ type: 'negPlace', placements: negDraft.placements })}
-              >
-                ✓ Colocar mis fichas
-              </button>
-            </>
-          )}
-        </>
-      )}
-      {status}
-    </>
-  );
-}
-
-function SplitNegotiationPanel({ view, g, nameOf, negDraft, sixTokens, drafting, onCounter }: PanelProps) {
-  const n = g.negotiation!;
-  const me = view.me.id;
-  const amIn = !!n.picks;
-  const other = n.players.find((p) => p !== me)!;
-  const [sel, setSel] = useState<number[]>([]);
-  useEffect(() => setSel(n.picks?.[me] ?? []), [g.round, n.picks?.[me]?.join()]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const status = (
-    <ul className="neg-status">
-      {n.players.map((p) => (
-        <li key={p}>
-          {nameOf(p)}: {n.ready[p] ? '✓ fichas elegidas' : 'eligiendo fichas…'}
-        </li>
-      ))}
-    </ul>
-  );
+  const title = n.shared ? `🤝 Empate en la subasta ${g.resolution?.sharedAuction}` : '🤝 Negociación';
+  if (!amIn) {
+    return (
+      <>
+        <div className="panel-head">
+          <h3>{title}</h3>
+          <Countdown deadline={n.deadline} />
+        </div>
+        <p>{joinNames(n.players.map(nameOf))} están negociando dónde colocar sus fichas.</p>
+        {status}
+      </>
+    );
+  }
 
   return (
     <>
       <div className="panel-head">
-        <h3>🤝 Negociación</h3>
+        <h3>{title}</h3>
         <Countdown deadline={n.deadline} />
       </div>
-      {!amIn ? (
+      <p className="hint">
+        {n.shared
+          ? `Elige ${howMany} de las 5 fichas (no puedes coger las de ${nameOf(other)}).`
+          : `Elige ${howMany} de tus 5 fichas.`}{' '}
+        Luego coloca las tuyas; las de {nameOf(other)} te salen en dorado según las pone. Cuando os guste a los dos,
+        pulsad «Estoy de acuerdo».
+      </p>
+      <div className="neg-pick" role="group" aria-label="Fichas para elegir">
+        {n.tokens[me].map((c, i) => {
+          const on = sel.includes(i);
+          const taken = takenByOther.has(i);
+          return (
+            <button
+              key={i}
+              type="button"
+              aria-pressed={on}
+              disabled={taken}
+              title={taken ? `La ha elegido ${nameOf(other)}` : undefined}
+              className={`tray-token${on ? ' selected' : ''}${taken ? ' used' : ''}`}
+              onClick={() => setSel(on ? sel.filter((x) => x !== i) : sel.length < howMany ? [...sel, i] : sel)}
+            >
+              <Token color={c} size={40} />
+            </button>
+          );
+        })}
+      </div>
+      <button
+        className="btn small"
+        disabled={sel.length !== howMany || sel.slice().sort().join() === (n.picks![me] ?? []).join()}
+        onClick={() => act({ type: 'negPick', indices: sel })}
+      >
+        {n.picks![me] ? 'Cambiar elección' : 'Confirmar elección'}
+      </button>
+      {!n.shared && (
         <>
-          <p>
-            {joinNames(n.players.map(nameOf))} están negociando cómo colocar 6 fichas.
-          </p>
-          {status}
-          {n.hasProposal && <p className="muted">Hay una propuesta de {nameOf(n.proposalBy!)} sobre la mesa.</p>}
-        </>
-      ) : (
-        <>
-          <p className="hint">
-            Elige {NEGOTIATION_PICK} de tus 5 fichas. Después, cualquiera de los dos puede proponer dónde van las 6.
-          </p>
-          <div className="neg-pick" role="group" aria-label="Tus fichas">
-            {n.tokens[me].map((c, i) => {
-              const on = sel.includes(i);
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  aria-pressed={on}
-                  className={`tray-token${on ? ' selected' : ''}`}
-                  onClick={() => setSel(on ? sel.filter((x) => x !== i) : sel.length < NEGOTIATION_PICK ? [...sel, i] : sel)}
-                >
-                  <Token color={c} size={42} />
-                </button>
-              );
-            })}
-          </div>
-          <button
-            className="btn small"
-            disabled={sel.length !== NEGOTIATION_PICK || sel.slice().sort().join() === (n.picks![me] ?? []).join()}
-            onClick={() => act({ type: 'negPick', indices: sel })}
-          >
-            {n.picks![me] ? 'Cambiar elección' : 'Confirmar elección'}
-          </button>
           <div className="muted small">Fichas de {nameOf(other)}:</div>
           <TokenRow
             tokens={n.picks![other] ? n.picks![other]!.map((i) => n.tokens[other][i]) : n.tokens[other]}
-            size={30}
+            size={28}
           />
-          {status}
-
-          {drafting && (
-            <>
-              <h3>Tu propuesta</h3>
-              <DraftTray tokens={sixTokens} draft={negDraft} />
-              <button
-                className="btn primary wide"
-                disabled={!negDraft.complete}
-                onClick={() => act({ type: 'negPropose', placements: negDraft.placements })}
-              >
-                📨 Enviar propuesta
-              </button>
-            </>
-          )}
-          {!drafting && n.hasProposal && n.proposalBy === me && (
-            <>
-              <p>Propuesta enviada (en el tablero). Esperando respuesta de {nameOf(other)}…</p>
-              <button className="btn ghost small" onClick={onCounter}>
-                ✏️ Cambiar propuesta
-              </button>
-            </>
-          )}
-          {!drafting && n.hasProposal && n.proposalBy === other && (
-            <>
-              <p>
-                <b>{nameOf(other)}</b> propone la colocación que ves en el tablero.
-              </p>
-              <div className="row-buttons">
-                <button className="btn primary" onClick={() => act({ type: 'negAccept' })}>
-                  ✓ Aceptar
-                </button>
-                <button
-                  className="btn ghost"
-                  onClick={async () => {
-                    if (await act({ type: 'negReject' })) onCounter();
-                  }}
-                >
-                  ✗ Rechazar y contraproponer
-                </button>
-              </div>
-            </>
-          )}
-          {n.rejectedBy === other && !n.hasProposal && <p className="muted">{nameOf(other)} rechazó la propuesta.</p>}
-          <button
-            className="btn ghost small danger"
-            onClick={() => confirm('Sin acuerdo, la ronda es nula y los dos perdéis la puja. ¿Seguro?') && act({ type: 'negNoDeal' })}
-          >
-            Declarar sin acuerdo
-          </button>
         </>
       )}
+
+      {draft.tokens.length > 0 && (
+        <>
+          <h3>Tus fichas</h3>
+          <div className="tray-tokens" role="listbox" aria-label="Tus fichas por colocar">
+            {draft.tokens.map((c, i) => {
+              const used = draft.used.has(i);
+              const selected = draft.selected === i || (draft.selected === null && !used && [...draft.tokens.keys()].find((k) => !draft.used.has(k)) === i);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={`tray-token${selected ? ' selected' : ''}${used ? ' used' : ''}`}
+                  onClick={() => draft.select(i)}
+                  disabled={used}
+                >
+                  <Token color={c} size={42} />
+                </button>
+              );
+            })}
+          </div>
+          <p className="hint">Toca una casilla libre para poner la ficha marcada; toca una tuya para quitarla.</p>
+        </>
+      )}
+      {status}
+      <div className="row-buttons">
+        <button
+          className="btn primary"
+          disabled={!complete(me) || !complete(other) || n.agreed[me]}
+          onClick={() => act({ type: 'negAgree' })}
+        >
+          {n.agreed[me] ? '✓ De acuerdo' : '✓ Estoy de acuerdo'}
+        </button>
+        <button
+          className="btn ghost small danger"
+          onClick={() => confirm('Sin acuerdo, la ronda es nula y los dos perdéis la puja. ¿Seguro?') && act({ type: 'negNoDeal' })}
+        >
+          Declarar sin acuerdo
+        </button>
+      </div>
     </>
   );
 }

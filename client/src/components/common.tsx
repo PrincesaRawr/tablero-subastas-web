@@ -93,14 +93,13 @@ export function RulesModal({ onClose }: { onClose: () => void }) {
         </div>
         <h3>🤝 Empate</h3>
         <p>
-          Si los dos ganadores pujaron lo mismo, negocian: cada uno elige 3 de sus 5 fichas y se ponen de acuerdo para
-          colocar las 6. Si no hay acuerdo (o pasan {NEGOTIATION_TIME_LIMIT_S / 60} minutos), la ronda es nula y los dos
-          pierden lo pujado.
+          Si los dos ganadores pujaron lo mismo, cada uno elige 3 de sus 5 fichas. Si dos personas empatan en la{' '}
+          <b>misma subasta</b> (y es la que da fichas), cada una elige 2 de esas 5, sin repetir las del otro.
         </p>
         <p>
-          Si dos personas pujan lo mismo en la <b>misma subasta</b> y esa es la que da fichas, cada una elige 2 de las 5
-          fichas (no puede coger las del otro) y las coloca a la vez. La quinta se descarta y las dos pierden lo pujado.
-          Con tres o más empatadas se decide al azar.
+          Después cada uno coloca sus fichas y el otro las ve aparecer al momento. Cuando los dos pulsan «Estoy de
+          acuerdo» se quedan en el tablero. Si alguien declara «sin acuerdo» (o pasan {NEGOTIATION_TIME_LIMIT_S / 60}{' '}
+          minutos), la ronda es nula y los dos pierden lo pujado. Con tres o más empatados en una subasta, se decide al azar.
         </p>
         <h3>🪙 Monedas</h3>
         <p>Los dos ganadores pierden lo que pujaron, se lleven fichas o no. El resto lo recupera todo.</p>

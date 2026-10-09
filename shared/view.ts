@@ -26,19 +26,16 @@ export interface RoomSnapshot {
 export interface PublicNegotiation {
   players: [string, string];
   tokens: Record<string, Color[]>;
-  /** Si cada negociador ya eligió sus 3 fichas. */
+  /** Si cada negociador ya eligió sus fichas. */
   ready: Record<string, boolean>;
-  hasProposal: boolean;
-  proposalBy: string | null;
-  rejectedBy: string | null;
+  /** Quién ha dado el visto bueno a la colocación actual. */
+  agreed: Record<string, boolean>;
   deadline: number;
-  /** Empate en la misma subasta: colocan juntos las 5 fichas, sin elegir. */
+  /** Empate en la misma subasta (eligen de las mismas 5 fichas, sin repetir). */
   shared: boolean;
-  /** Modo compartido: quién ya ha colocado. */
-  placed: Record<string, boolean>;
   /** Solo para los dos negociadores: */
   picks?: Record<string, number[] | null>;
-  proposal?: Placement[] | null;
+  live?: Record<string, Placement[]>;
 }
 
 export interface ClientView {
@@ -94,16 +91,13 @@ export function buildView(room: RoomSnapshot, viewerId: string, now: number): Cl
       players: n.players,
       tokens: n.tokens,
       ready: Object.fromEntries(n.players.map((p) => [p, n.picks[p] !== null])),
-      hasProposal: n.proposal !== null,
-      proposalBy: n.proposal?.by ?? null,
-      rejectedBy: n.rejectedBy,
+      agreed: { ...n.agreed },
       deadline: n.deadline,
       shared: n.shared,
-      placed: n.placed,
     };
     if (n.players.includes(viewerId)) {
       negotiation.picks = { ...n.picks };
-      negotiation.proposal = n.proposal?.placements ?? null;
+      negotiation.live = { ...n.live };
     }
   }
 
