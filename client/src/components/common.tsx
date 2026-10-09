@@ -91,15 +91,22 @@ export function RulesModal({ onClose, startingCoins = STARTING_COINS }: { onClos
           <b>Ejemplo:</b> Ana gana A con <b>15</b> monedas y Luis gana B con <b>17</b>. Ana coloca sus 5 fichas; las de B se
           descartan. Ana pierde 15 monedas y Luis pierde 17. Todos los demás recuperan lo que pujaron.
         </div>
-        <h3>🤝 Empate</h3>
+        <h3>🤝 Empates (nunca se decide al azar)</h3>
+        <ul>
+          <li>
+            Si varias personas empatan en la subasta que da fichas, se reparten sus 5: 2 cada una si son dos, 1 cada
+            una si son más. Nadie puede coger una ficha que ya eligió otra persona.
+          </li>
+          <li>
+            Si la A y la B acaban con la misma puja, negocian todos los ganadores: quien ganó su subasta en solitario
+            elige 3 de sus fichas, y los empatados dentro de una subasta se reparten como arriba. Ejemplo: dos empatan
+            en la A y una gana la B con lo mismo → la de la B elige 3 y las de la A, 2 cada una.
+          </li>
+        </ul>
         <p>
-          Si los dos ganadores pujaron lo mismo, cada uno elige 3 de sus 5 fichas. Si dos personas empatan en la{' '}
-          <b>misma subasta</b> (y es la que da fichas), cada una elige 2 de esas 5, sin repetir las del otro.
-        </p>
-        <p>
-          Después cada uno coloca sus fichas y el otro las ve aparecer al momento. Cuando los dos pulsan «Estoy de
-          acuerdo» se quedan en el tablero. Si alguien declara «sin acuerdo» (o pasan {NEGOTIATION_TIME_LIMIT_S / 60}{' '}
-          minutos), la ronda es nula y los dos pierden lo pujado. Con tres o más empatados en una subasta, se decide al azar.
+          Cada uno coloca sus fichas y los demás las ven aparecer al momento. Cuando todos pulsan «Estoy de acuerdo»
+          se quedan en el tablero. Si alguien declara «sin acuerdo» (o pasan {NEGOTIATION_TIME_LIMIT_S / 60}{' '}
+          minutos), la ronda es nula y todos los ganadores pierden lo pujado.
         </p>
         <h3>🪙 Monedas</h3>
         <p>Los dos ganadores pierden lo que pujaron, se lleven fichas o no. El resto lo recupera todo.</p>

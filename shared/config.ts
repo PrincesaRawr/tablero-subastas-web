@@ -47,15 +47,13 @@ export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 12;
 
 /**
- * [D4, cambiado a petición] Si EXACTAMENTE dos personas empatan con la puja más alta de una misma subasta
- * y esa subasta es la que da fichas, cada una elige SHARED_TIE_PICK de sus 5 fichas y las coloca ella misma.
- * Con 3 o más empatadas (o en false) se desempata al azar.
+ * [D4, D9 — cambiados a petición] Nunca hay desempate al azar: todo empate se negocia.
+ *  - Si varias personas empatan en la subasta que da fichas, se reparten sus 5 fichas:
+ *    cada una elige 5 / n (redondeando hacia abajo), sin repetir las de las demás.
+ *  - Si A y B acaban con la misma puja, negocian todos los ganadores de las dos subastas:
+ *    quien ganó su subasta en solitario elige NEGOTIATION_PICK de sus fichas; los empatados, 5 / n.
+ * Cada uno coloca solo sus fichas y hace falta que TODOS estén de acuerdo.
  */
-export const SAME_AUCTION_TIE_NEGOTIATES = true;
-/** En ese empate, cada persona elige estas fichas (sin repetir las del otro) y las coloca ella misma. */
-export const SHARED_TIE_PICK = 2;
-
-/** [D9] Fichas que elige cada negociador y tiempo límite de la negociación. */
 export const NEGOTIATION_PICK = 3;
 export const NEGOTIATION_TIME_LIMIT_S = 120;
 

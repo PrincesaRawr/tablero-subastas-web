@@ -128,10 +128,11 @@ describe('partida completa con 3 clientes Socket.IO', () => {
         // los no negociadores no ven ni la elección ni la propuesta
         expect(evaClient.view().game!.negotiation!.picks).toBeUndefined();
         expect(evaClient.view().game!.negotiation!.live).toBeUndefined();
-        await ok(host, 'game:action', { type: 'negPick', indices: [0, 1, 2] });
-        await ok(luis, 'game:action', { type: 'negPick', indices: [2, 3, 4] });
+        await ok(host, 'game:action', { type: 'negPick', auction: 'A', indices: [0, 1, 2] });
+        await ok(luis, 'game:action', { type: 'negPick', auction: 'B', indices: [2, 3, 4] });
         const n = (await luis.waitFor((v) => !!v.game?.negotiation?.ready[ids.Ana])).game!.negotiation!;
-        const mine = (id: string) => n.picks![id]!.map((i) => n.tokens[id][i]);
+        const mine = (id: string) =>
+          n.slots.flatMap((sl, j) => (sl.playerId === id ? n.picks![j]!.map((i) => n.pools[sl.auction]![i]) : []));
         const cells = freeCells(luis.view().game!.board);
         await ok(host, 'game:action', { type: 'negSet', placements: mine(ids.Ana).map((color, i) => ({ color, ...cells[i] })) });
         // Luis ve en tiempo real lo que va colocando Ana
@@ -183,7 +184,7 @@ describe('partida completa con 3 clientes Socket.IO', () => {
         await ok(host, 'game:action', { type: 'close' });
         const placing = await host.waitFor((x) => x.game?.phase === 'COLOCACION');
         expect(placing.game!.placement!.playerId).toBe(ids.Ana);
-        expect(placing.game!.resolution!.winners.B).toMatchObject({ playerId: ids.Luis, bid: 2 });
+        expect(placing.game!.resolution!.winners.B).toEqual({ playerIds: [ids.Luis], bid: 2 });
         expect((await luis.call('game:action', { type: 'place', placements: [] })).error).toBe('No te toca colocar fichas.');
         await ok(host, 'game:action', { type: 'place', placements: firstFree(placing, placing.game!.placement!.tokens) });
       }

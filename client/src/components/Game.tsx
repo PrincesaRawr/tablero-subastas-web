@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NEGOTIATION_PICK, SHARED_TIE_PICK, type Color } from '../../../shared/config';
-import { applyPlacements, findOccurrences, type Cell, type Placement } from '../../../shared/engine';
+import type { Color } from '../../../shared/config';
+import { applyPlacements, findOccurrences, type AuctionId, type Cell, type Placement } from '../../../shared/engine';
 import type { ClientView } from '../../../shared/view';
 import type { PeekedBid } from '../../../shared/protocol';
 import { act, call, forgetSession, showToast } from '../store';
-import { PHASE_LABEL, joinNames, logText, nameResolver, resolutionVerdict, winnerLine, type NameOf } from '../text';
+import { PHASE_LABEL, describeSlots, joinNames, logText, nameResolver, resolutionVerdict, winnerLine, type NameOf } from '../text';
 import { usePlacementDraft, type PlacementDraft } from '../usePlacementDraft';
 import { Board } from './Board';
 import { Countdown, DraftTray, TokenRow } from './common';
@@ -55,13 +55,18 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
   // ── negociación: cada uno coloca sus fichas y el otro las ve en tiempo real ──
   const neg = g.negotiation;
   const amNegotiator = !!neg?.picks;
-  const otherId = neg?.players.find((p) => p !== me.id) ?? '';
-  const myNegTokens = useMemo<Color[]>(
-    () => (amNegotiator && neg!.picks![me.id] ? neg!.picks![me.id]!.map((i) => neg!.tokens[me.id][i]) : NO_TOKENS),
+  // mis fichas: las de todas mis plazas, solo cuando ya las he elegido todas
+  const myNegTokens = useMemo<Color[]>(() => {
+    if (!amNegotiator) return NO_TOKENS;
+    const mine = neg!.slots.map((sl, j) => ({ sl, j })).filter(({ sl }) => sl.playerId === me.id);
+    if (!mine.length || mine.some(({ j }) => !neg!.picks![j])) return NO_TOKENS;
+    return mine.flatMap(({ sl, j }) => neg!.picks![j]!.map((i) => neg!.pools[sl.auction]![i]));
+  }, [amNegotiator, neg, me.id]);
+  const myLive = (amNegotiator && neg!.live![me.id]) || NO_PLACEMENTS;
+  const otherLive = useMemo(
+    () => (amNegotiator ? neg!.players.filter((p) => p !== me.id).flatMap((p) => neg!.live![p]) : NO_PLACEMENTS),
     [amNegotiator, neg, me.id],
   );
-  const myLive = (amNegotiator && neg!.live![me.id]) || NO_PLACEMENTS;
-  const otherLive = (amNegotiator && neg!.live![otherId]) || NO_PLACEMENTS;
   const usedIdx = usedTokenIndices(myNegTokens, myLive);
   const [negSelected, setNegSelected] = useState<number | null>(null);
   useEffect(() => setNegSelected(null), [g.round, myNegTokens.join()]);
@@ -475,7 +480,7 @@ function Reveal({ g, nameOf }: { g: GameView; nameOf: NameOf }) {
       <h2>Resultado de la subasta</h2>
       <ul className="reveal-list">
         {(['A', 'B'] as const).map((id, i) => (
-          <li key={id} className={`reveal-item${r.recipient?.auction === id || r.sharedAuction === id ? ' won' : ''}`} style={{ animationDelay: `${i * 350}ms` }}>
+          <li key={id} className={`reveal-item${r.recipient?.auction === id || r.slots?.some((sl) => sl.auction === id) ? ' won' : ''}`} style={{ animationDelay: `${i * 350}ms` }}>
             {winnerLine(r, id, nameOf)}
           </li>
         ))}
@@ -488,7 +493,7 @@ function Reveal({ g, nameOf }: { g: GameView; nameOf: NameOf }) {
 }
 
 function ChoosePanel({ view, g, nameOf }: PanelProps) {
-  const winner = g.resolution!.winners.A!.playerId;
+  const winner = g.resolution!.winners.A!.playerIds[0];
   if (winner !== view.me.id) return <p className="hint">Esperando a que {nameOf(winner)} elija subasta…</p>;
   return (
     <>
@@ -544,15 +549,12 @@ function NegotiationPanel({ view, g, nameOf, neg: draft }: PanelProps) {
   const n = g.negotiation!;
   const me = view.me.id;
   const amIn = !!n.picks;
-  const other = n.players.find((p) => p !== me) ?? n.players[1];
-  const howMany = n.shared ? SHARED_TIE_PICK : NEGOTIATION_PICK;
-  const [sel, setSel] = useState<number[]>([]);
-  useEffect(() => setSel(n.picks?.[me] ?? []), [g.round, n.picks?.[me]?.join()]); // eslint-disable-line react-hooks/exhaustive-deps
-  const takenByOther = new Set(amIn && n.shared ? (n.picks![other] ?? []) : []);
+  const others = n.players.filter((p) => p !== me);
+  const mySlots = n.slots.map((sl, j) => ({ sl, j })).filter(({ sl }) => sl.playerId === me);
 
-  const count = (p: string) => (n.live?.[p]?.length ?? 0);
-  const total = (p: string) => (n.picks?.[p]?.length ?? 0);
-  const complete = (p: string) => !!n.picks?.[p] && count(p) === total(p);
+  const total = (p: string) => n.slots.filter((sl) => sl.playerId === p).reduce((a, sl) => a + sl.pick, 0);
+  const count = (p: string) => n.live?.[p]?.length ?? 0;
+  const complete = (p: string) => n.ready[p] && count(p) === total(p);
   const status = (
     <ul className="neg-status">
       {n.players.map((p) => (
@@ -570,14 +572,20 @@ function NegotiationPanel({ view, g, nameOf, neg: draft }: PanelProps) {
     </ul>
   );
 
-  const title = n.shared ? `🤝 Empate en la subasta ${g.resolution?.sharedAuction}` : '🤝 Negociación';
+  const head = (
+    <>
+      <div className="panel-head">
+        <h3>🤝 Negociación</h3>
+        <Countdown deadline={n.deadline} />
+      </div>
+      <p className="hint">{describeSlots(n.slots, nameOf)}.</p>
+    </>
+  );
+
   if (!amIn) {
     return (
       <>
-        <div className="panel-head">
-          <h3>{title}</h3>
-          <Countdown deadline={n.deadline} />
-        </div>
+        {head}
         <p>{joinNames(n.players.map(nameOf))} están negociando dónde colocar sus fichas.</p>
         {status}
       </>
@@ -586,52 +594,14 @@ function NegotiationPanel({ view, g, nameOf, neg: draft }: PanelProps) {
 
   return (
     <>
-      <div className="panel-head">
-        <h3>{title}</h3>
-        <Countdown deadline={n.deadline} />
-      </div>
+      {head}
       <p className="hint">
-        {n.shared
-          ? `Elige ${howMany} de las 5 fichas (no puedes coger las de ${nameOf(other)}).`
-          : `Elige ${howMany} de tus 5 fichas.`}{' '}
-        Luego coloca las tuyas; las de {nameOf(other)} te salen en dorado según las pone. Cuando os guste a los dos,
-        pulsad «Estoy de acuerdo».
+        Elige tus fichas y colócalas; las de {joinNames(others.map(nameOf))} te salen en dorado según las ponen. Cuando
+        os guste a todos, pulsad «Estoy de acuerdo».
       </p>
-      <div className="neg-pick" role="group" aria-label="Fichas para elegir">
-        {n.tokens[me].map((c, i) => {
-          const on = sel.includes(i);
-          const taken = takenByOther.has(i);
-          return (
-            <button
-              key={i}
-              type="button"
-              aria-pressed={on}
-              disabled={taken}
-              title={taken ? `La ha elegido ${nameOf(other)}` : undefined}
-              className={`tray-token${on ? ' selected' : ''}${taken ? ' used' : ''}`}
-              onClick={() => setSel(on ? sel.filter((x) => x !== i) : sel.length < howMany ? [...sel, i] : sel)}
-            >
-              <Token color={c} size={40} />
-            </button>
-          );
-        })}
-      </div>
-      <button
-        className="btn small"
-        disabled={sel.length !== howMany || sel.slice().sort().join() === (n.picks![me] ?? []).join()}
-        onClick={() => act({ type: 'negPick', indices: sel })}
-      >
-        {n.picks![me] ? 'Cambiar elección' : 'Confirmar elección'}
-      </button>
-      {!n.shared && (
-        <>
-          <div className="muted small">Fichas de {nameOf(other)}:</div>
-          <TokenRow
-            tokens={n.picks![other] ? n.picks![other]!.map((i) => n.tokens[other][i]) : n.tokens[other]}
-            size={28}
-          />
-        </>
-      )}
+      {mySlots.map(({ sl, j }) => (
+        <SlotPicker key={j} n={n} slotIndex={j} auction={sl.auction} pick={sl.pick} nameOf={nameOf} round={g.round} />
+      ))}
 
       {draft.tokens.length > 0 && (
         <>
@@ -639,7 +609,8 @@ function NegotiationPanel({ view, g, nameOf, neg: draft }: PanelProps) {
           <div className="tray-tokens" role="listbox" aria-label="Tus fichas por colocar">
             {draft.tokens.map((c, i) => {
               const used = draft.used.has(i);
-              const selected = draft.selected === i || (draft.selected === null && !used && [...draft.tokens.keys()].find((k) => !draft.used.has(k)) === i);
+              const firstFree = draft.tokens.findIndex((_, k) => !draft.used.has(k));
+              const selected = !used && (draft.selected === i || (draft.selected === null && firstFree === i));
               return (
                 <button
                   key={i}
@@ -662,19 +633,74 @@ function NegotiationPanel({ view, g, nameOf, neg: draft }: PanelProps) {
       <div className="row-buttons">
         <button
           className="btn primary"
-          disabled={!complete(me) || !complete(other) || n.agreed[me]}
+          disabled={!n.players.every(complete) || n.agreed[me]}
           onClick={() => act({ type: 'negAgree' })}
         >
           {n.agreed[me] ? '✓ De acuerdo' : '✓ Estoy de acuerdo'}
         </button>
         <button
           className="btn ghost small danger"
-          onClick={() => confirm('Sin acuerdo, la ronda es nula y los dos perdéis la puja. ¿Seguro?') && act({ type: 'negNoDeal' })}
+          onClick={() =>
+            confirm('Sin acuerdo, la ronda es nula y todos los ganadores perdéis la puja. ¿Seguro?') && act({ type: 'negNoDeal' })
+          }
         >
           Declarar sin acuerdo
         </button>
       </div>
     </>
+  );
+}
+
+/** Elegir mis fichas de una subasta; las ya cogidas por otra persona salen apagadas. */
+function SlotPicker(props: {
+  n: NonNullable<GameView['negotiation']>;
+  slotIndex: number;
+  auction: AuctionId;
+  pick: number;
+  nameOf: NameOf;
+  round: number;
+}) {
+  const { n, slotIndex, auction, pick, nameOf, round } = props;
+  const current = n.picks![slotIndex];
+  const [sel, setSel] = useState<number[]>(current ?? []);
+  useEffect(() => setSel(current ?? []), [round, current?.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const takenBy = new Map<number, string>();
+  n.slots.forEach((sl, j) => {
+    if (j !== slotIndex && sl.auction === auction) for (const i of n.picks![j] ?? []) takenBy.set(i, sl.playerId);
+  });
+  if (pick === 0) return <p className="hint">Sois demasiados empatados en la {auction}: esta vez no te toca ficha.</p>;
+  return (
+    <div className="slot-picker">
+      <div className="muted small">
+        Elige {pick} {pick === 1 ? 'ficha' : 'fichas'} de la subasta {auction}:
+      </div>
+      <div className="neg-pick" role="group" aria-label={`Fichas de la subasta ${auction}`}>
+        {n.pools[auction]!.map((c, i) => {
+          const on = sel.includes(i);
+          const owner = takenBy.get(i);
+          return (
+            <button
+              key={i}
+              type="button"
+              aria-pressed={on}
+              disabled={!!owner}
+              title={owner ? `La ha elegido ${nameOf(owner)}` : undefined}
+              className={`tray-token${on ? ' selected' : ''}${owner ? ' used' : ''}`}
+              onClick={() => setSel(on ? sel.filter((x) => x !== i) : sel.length < pick ? [...sel, i] : sel)}
+            >
+              <Token color={c} size={40} />
+            </button>
+          );
+        })}
+      </div>
+      <button
+        className="btn small"
+        disabled={sel.length !== pick || sel.slice().sort().join() === (current ?? []).join()}
+        onClick={() => act({ type: 'negPick', auction, indices: sel })}
+      >
+        {current ? 'Cambiar elección' : 'Confirmar elección'}
+      </button>
+    </div>
   );
 }
 

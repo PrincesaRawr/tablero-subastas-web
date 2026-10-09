@@ -137,29 +137,28 @@ describe('negociación (ganan A y B con la misma puja)', () => {
   it('cada uno elige 3 de sus fichas, coloca solo las suyas y al estar los dos de acuerdo se aplican', () => {
     let s = toNegotiation();
     expect(s.phase).toBe('NEGOCIACION');
-    expect(s.negotiation!.shared).toBe(false);
+    expect(s.negotiation!.players).toEqual(['ana', 'luis']);
     expect(s.players.map((p) => p.coins)).toEqual([30, 30, 40]);
 
-    expect(tryRun(s, { type: 'negPick', indices: [0, 1] }, 'ana')).toMatchObject({ ok: false });
-    expect(tryRun(s, { type: 'negPick', indices: [0, 1, 2] }, 'eva')).toMatchObject({ ok: false });
+    expect(tryRun(s, { type: 'negPick', auction: 'A', indices: [0, 1] }, 'ana')).toMatchObject({ ok: false });
+    expect(tryRun(s, { type: 'negPick', auction: 'B', indices: [0, 1, 2] }, 'ana')).toMatchObject({ ok: false }); // no es su subasta
+    expect(tryRun(s, { type: 'negPick', auction: 'A', indices: [0, 1, 2] }, 'eva')).toMatchObject({ ok: false });
     expect(tryRun(s, { type: 'negSet', placements: [] }, 'ana')).toMatchObject({ ok: false }); // aún no ha elegido
-    s = run(s, { type: 'negPick', indices: [0, 1, 2] }, 'ana');
-    s = run(s, { type: 'negPick', indices: [4, 3, 2] }, 'luis');
-    expect(s.negotiation!.picks.luis).toEqual([2, 3, 4]);
+    s = run(s, { type: 'negPick', auction: 'A', indices: [0, 1, 2] }, 'ana');
+    s = run(s, { type: 'negPick', auction: 'B', indices: [4, 3, 2] }, 'luis');
+    expect(s.negotiation!.picks[1]).toEqual([2, 3, 4]);
     const ana = myTokens(s.negotiation!, 'ana');
     const luis = myTokens(s.negotiation!, 'luis');
 
     // colocación en tiempo real y parcial
     s = run(s, { type: 'negSet', placements: freeFrom(s, ana.slice(0, 1), 0) }, 'ana');
     expect(s.negotiation!.live.ana).toHaveLength(1);
-    // Luis no puede usar las fichas de Ana ni su casilla
-    expect(tryRun(s, { type: 'negSet', placements: freeFrom(s, [...luis, ana[0]], 10) }, 'luis')).toMatchObject({ ok: false });
     expect(tryRun(s, { type: 'negSet', placements: freeFrom(s, luis.slice(0, 1), 0) }, 'luis')).toEqual({
       ok: false,
       error: 'Esa casilla ya está ocupada.',
     });
     s = run(s, { type: 'negSet', placements: freeFrom(s, ana, 0) }, 'ana');
-    expect(tryRun(s, { type: 'negAgree' }, 'ana')).toEqual({ ok: false, error: 'Espera a que la otra persona coloque todas sus fichas.' });
+    expect(tryRun(s, { type: 'negAgree' }, 'ana')).toEqual({ ok: false, error: 'Espera a que todos coloquen sus fichas.' });
     s = run(s, { type: 'negSet', placements: freeFrom(s, luis, 3) }, 'luis');
     s = run(s, { type: 'negAgree' }, 'ana');
     expect(s.phase).toBe('NEGOCIACION');
@@ -175,7 +174,7 @@ describe('negociación (ganan A y B con la misma puja)', () => {
 
   it('"sin acuerdo" → ronda nula, nadie coloca y ambos pierden la puja', () => {
     let s = toNegotiation();
-    s = run(s, { type: 'negPick', indices: [0, 1, 2] }, 'ana');
+    s = run(s, { type: 'negPick', auction: 'A', indices: [0, 1, 2] }, 'ana');
     s = run(s, { type: 'negSet', placements: freeFrom(s, myTokens(s.negotiation!, 'ana'), 0) }, 'ana');
     s = run(s, { type: 'negNoDeal' }, 'luis');
     expect(s.phase).toBe('RONDA_CERRADA');
@@ -194,27 +193,21 @@ describe('negociación (ganan A y B con la misma puja)', () => {
   });
 });
 
-describe('empate en la misma subasta', () => {
-  function toSharedTie() {
+describe('empates de varias personas', () => {
+  it('2 empatan en la misma subasta: eligen 2 cada uno sin repetir y tienen que estar de acuerdo', () => {
     let s = toOpenAuction(createGame(['ana', 'luis', 'eva'], seeded(11)));
     s = run(s, { type: 'bid', bid: { A: 4, B: 0 } }, 'ana');
     s = run(s, { type: 'bid', bid: { A: 4, B: 0 } }, 'luis');
-    return run(s, { type: 'close' }, 'host', true);
-  }
-
-  it('cada uno elige 2 fichas distintas a las del otro, coloca las suyas y tienen que estar de acuerdo', () => {
-    let s = toSharedTie();
+    s = run(s, { type: 'close' }, 'host', true);
     expect(s.phase).toBe('NEGOCIACION');
-    expect(s.negotiation!.shared).toBe(true);
     expect(s.players.map((p) => p.coins)).toEqual([36, 36, 40]);
-
-    expect(tryRun(s, { type: 'negPick', indices: [0, 1, 2] }, 'ana')).toMatchObject({ ok: false });
-    s = run(s, { type: 'negPick', indices: [0, 1] }, 'ana');
-    expect(tryRun(s, { type: 'negPick', indices: [1, 2] }, 'luis')).toEqual({
+    expect(tryRun(s, { type: 'negPick', auction: 'A', indices: [0, 1, 2] }, 'ana')).toMatchObject({ ok: false });
+    s = run(s, { type: 'negPick', auction: 'A', indices: [0, 1] }, 'ana');
+    expect(tryRun(s, { type: 'negPick', auction: 'A', indices: [1, 2] }, 'luis')).toEqual({
       ok: false,
-      error: 'Esa ficha ya la ha elegido la otra persona.',
+      error: 'Esa ficha ya la ha elegido otra persona.',
     });
-    s = run(s, { type: 'negPick', indices: [3, 4] }, 'luis');
+    s = run(s, { type: 'negPick', auction: 'A', indices: [3, 4] }, 'luis');
     s = run(s, { type: 'negSet', placements: freeFrom(s, myTokens(s.negotiation!, 'luis'), 0) }, 'luis');
     s = run(s, { type: 'negSet', placements: freeFrom(s, myTokens(s.negotiation!, 'ana'), 2) }, 'ana');
     s = run(s, { type: 'negAgree' }, 'ana');
@@ -223,10 +216,39 @@ describe('empate en la misma subasta', () => {
     expect(s.board.flat().filter(Boolean)).toHaveLength(4); // la quinta ficha se descarta
   });
 
-  it('también se puede declarar sin acuerdo', () => {
-    let s = toSharedTie();
-    s = run(s, { type: 'negNoDeal' }, 'ana');
+  it('2 en la A y 1 en la B con la misma puja: los tres negocian (2 + 2 de la A, 3 de la B)', () => {
+    let s = toOpenAuction(createGame(['ana', 'luis', 'eva'], seeded(12)));
+    s = run(s, { type: 'bid', bid: { A: 6, B: 0 } }, 'ana');
+    s = run(s, { type: 'bid', bid: { A: 6, B: 0 } }, 'luis');
+    s = run(s, { type: 'bid', bid: { A: 0, B: 6 } }, 'eva');
+    s = run(s, { type: 'close' }, 'host', true);
+    const n0 = s.negotiation!;
+    expect(n0.players).toEqual(['ana', 'luis', 'eva']);
+    expect(n0.pools).toEqual({ A: s.auction!.A, B: s.auction!.B });
+    s = run(s, { type: 'negPick', auction: 'A', indices: [0, 1] }, 'ana');
+    s = run(s, { type: 'negPick', auction: 'A', indices: [2, 3] }, 'luis');
+    s = run(s, { type: 'negPick', auction: 'B', indices: [0, 1, 2] }, 'eva');
+    s = run(s, { type: 'negSet', placements: freeFrom(s, myTokens(s.negotiation!, 'ana'), 0) }, 'ana');
+    s = run(s, { type: 'negSet', placements: freeFrom(s, myTokens(s.negotiation!, 'luis'), 2) }, 'luis');
+    s = run(s, { type: 'negSet', placements: freeFrom(s, myTokens(s.negotiation!, 'eva'), 4) }, 'eva');
+    s = run(s, { type: 'negAgree' }, 'ana');
+    s = run(s, { type: 'negAgree' }, 'luis');
+    expect(s.phase).toBe('NEGOCIACION'); // falta Eva
+    s = run(s, { type: 'negAgree' }, 'eva');
     expect(s.phase).toBe('RONDA_CERRADA');
-    expect(s.log.at(-1)).toMatchObject({ type: 'null-round', reason: 'sin-acuerdo' });
+    expect(s.board.flat().filter(Boolean)).toHaveLength(7);
+    expect(s.players.map((p) => p.coins)).toEqual([34, 34, 34]);
+  });
+
+  it('cualquiera de los tres puede declarar sin acuerdo', () => {
+    let s = toOpenAuction(createGame(['ana', 'luis', 'eva'], seeded(13)));
+    s = run(s, { type: 'bid', bid: { A: 3, B: 0 } }, 'ana');
+    s = run(s, { type: 'bid', bid: { A: 3, B: 0 } }, 'luis');
+    s = run(s, { type: 'bid', bid: { A: 3, B: 0 } }, 'eva');
+    s = run(s, { type: 'close' }, 'host', true);
+    expect(s.negotiation!.slots.map((sl) => sl.pick)).toEqual([1, 1, 1]);
+    s = run(s, { type: 'negNoDeal' }, 'eva');
+    expect(s.phase).toBe('RONDA_CERRADA');
+    expect(s.log.at(-1)).toMatchObject({ type: 'null-round', reason: 'sin-acuerdo', playerIds: ['ana', 'eva', 'luis'] });
   });
 });

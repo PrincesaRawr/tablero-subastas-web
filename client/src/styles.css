@@ -1131,3 +1131,7 @@ input::placeholder {
   min-height: 36px;
   text-align: center;
 }
+
+.slot-picker {
+  margin: 0.4rem 0 0.6rem;
+}

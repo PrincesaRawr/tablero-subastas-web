@@ -4,7 +4,7 @@
  * ajenas (hasta FIN) ni pujas ajenas (solo las de los ganadores, D12).
  */
 import type { Color } from './config.js';
-import type { Bid, Board, FinalResults, Placement } from './engine.js';
+import type { Bid, Board, FinalResults, NegotiationSlot, Placement } from './engine.js';
 import type { GameSettings, GameState, LogEntry, Phase, PlacementTask, PublicResolution } from './game.js';
 import { publicResolution } from './game.js';
 
@@ -24,17 +24,16 @@ export interface RoomSnapshot {
 }
 
 export interface PublicNegotiation {
-  players: [string, string];
-  tokens: Record<string, Color[]>;
-  /** Si cada negociador ya eligió sus fichas. */
+  players: string[];
+  slots: NegotiationSlot[];
+  pools: { A: Color[] | null; B: Color[] | null };
+  /** Si cada persona ya eligió todas sus fichas. */
   ready: Record<string, boolean>;
   /** Quién ha dado el visto bueno a la colocación actual. */
   agreed: Record<string, boolean>;
   deadline: number;
-  /** Empate en la misma subasta (eligen de las mismas 5 fichas, sin repetir). */
-  shared: boolean;
-  /** Solo para los dos negociadores: */
-  picks?: Record<string, number[] | null>;
+  /** Solo para quienes negocian: */
+  picks?: (number[] | null)[];
   live?: Record<string, Placement[]>;
 }
 
@@ -90,14 +89,14 @@ export function buildView(room: RoomSnapshot, viewerId: string, now: number): Cl
     const n = g.negotiation;
     negotiation = {
       players: n.players,
-      tokens: n.tokens,
-      ready: Object.fromEntries(n.players.map((p) => [p, n.picks[p] !== null])),
+      slots: n.slots,
+      pools: n.pools,
+      ready: Object.fromEntries(n.players.map((p) => [p, n.slots.every((sl, j) => sl.playerId !== p || !!n.picks[j])])),
       agreed: { ...n.agreed },
       deadline: n.deadline,
-      shared: n.shared,
     };
     if (n.players.includes(viewerId)) {
-      negotiation.picks = { ...n.picks };
+      negotiation.picks = [...n.picks];
       negotiation.live = { ...n.live };
     }
   }

@@ -113,89 +113,96 @@ describe('pujas (D3)', () => {
   });
 });
 
-describe('resolución de ronda', () => {
-  const rng = seeded(1);
-
+describe('resolución de ronda (sin desempates al azar)', () => {
   it('ganador normal: A con 15 y B con 17 → recibe el de A', () => {
-    const r = resolveAuctions({ ana: { A: 15, B: 0 }, luis: { A: 3, B: 17 }, eva: { A: 0, B: 5 } }, rng);
+    const r = resolveAuctions({ ana: { A: 15, B: 0 }, luis: { A: 3, B: 17 }, eva: { A: 0, B: 5 } });
     expect(r.outcome).toBe('normal');
-    expect(r.winners.A).toMatchObject({ playerId: 'ana', bid: 15 });
-    expect(r.winners.B).toMatchObject({ playerId: 'luis', bid: 17 });
+    expect(r.winners.A).toEqual({ playerIds: ['ana'], bid: 15 });
+    expect(r.winners.B).toEqual({ playerIds: ['luis'], bid: 17 });
     expect(r.recipient).toEqual({ playerId: 'ana', auction: 'A' });
     // los ganadores pierden su puja ganadora; el resto lo recupera todo
     expect(r.coinsLost).toEqual({ ana: 15, luis: 17 });
     expect(applyCoinLoss({ ana: 40, luis: 40, eva: 40 }, r.coinsLost)).toEqual({ ana: 25, luis: 23, eva: 40 });
   });
 
-  it('empate entre los dos ganadores → negociación', () => {
-    const r = resolveAuctions({ ana: { A: 10, B: 0 }, luis: { A: 0, B: 10 } }, rng);
+  it('A y B con la misma puja (1 y 1) → negocian, 3 fichas cada uno de su subasta', () => {
+    const r = resolveAuctions({ ana: { A: 10, B: 0 }, luis: { A: 0, B: 10 } });
     expect(r.outcome).toBe('tie');
-    expect(r.recipient).toBeNull();
+    expect(r.slots).toEqual([
+      { playerId: 'ana', auction: 'A', pick: 3 },
+      { playerId: 'luis', auction: 'B', pick: 3 },
+    ]);
     expect(r.coinsLost).toEqual({ ana: 10, luis: 10 });
   });
 
-  it('empate de 2 en la misma subasta que da fichas → negocian sus 5 fichas, pierden los dos', () => {
-    const r = resolveAuctions({ ana: { A: 8, B: 0 }, luis: { A: 8, B: 0 }, eva: { A: 0, B: 12 } }, rng);
-    expect(r.outcome).toBe('shared-tie');
-    expect(r.sharedAuction).toBe('A');
-    expect(r.winners.A).toMatchObject({ playerId: 'ana', coWinner: 'luis', bid: 8 });
-    expect(r.recipient).toBeNull();
-    expect(r.coinsLost).toEqual({ ana: 8, luis: 8, eva: 12 });
-    // también si solo hubo pujas en esa subasta
-    expect(resolveAuctions({ ana: { A: 0, B: 3 }, luis: { A: 0, B: 3 } }, rng).outcome).toBe('shared-tie');
+  it('ejemplo pedido: 2 empatan en la A y 1 gana la B con la misma puja → B elige 3 y los de la A 2 cada uno', () => {
+    const r = resolveAuctions({ ana: { A: 6, B: 0 }, luis: { A: 6, B: 0 }, eva: { A: 0, B: 6 } });
+    expect(r.outcome).toBe('tie');
+    expect(r.winners.A).toEqual({ playerIds: ['ana', 'luis'], bid: 6 });
+    expect(r.slots).toEqual([
+      { playerId: 'ana', auction: 'A', pick: 2 },
+      { playerId: 'luis', auction: 'A', pick: 2 },
+      { playerId: 'eva', auction: 'B', pick: 3 },
+    ]);
+    expect(r.coinsLost).toEqual({ ana: 6, luis: 6, eva: 6 });
   });
 
-  it('empate de 2 en la subasta que NO da fichas → recibe el otro ganador; la pareja pierde la puja', () => {
-    const r = resolveAuctions({ ana: { A: 8, B: 0 }, luis: { A: 8, B: 0 }, eva: { A: 0, B: 5 } }, rng);
+  it('empate dentro de la subasta que da fichas → se reparten sus 5 (2 c/u si son 2, 1 c/u si son 3)', () => {
+    const two = resolveAuctions({ ana: { A: 8, B: 0 }, luis: { A: 8, B: 0 }, eva: { A: 0, B: 12 } });
+    expect(two.outcome).toBe('shared-tie');
+    expect(two.slots!.map((sl) => [sl.playerId, sl.auction, sl.pick])).toEqual([['ana', 'A', 2], ['luis', 'A', 2]]);
+    expect(two.coinsLost).toEqual({ ana: 8, luis: 8, eva: 12 });
+    const three = resolveAuctions({ ana: { A: 4, B: 0 }, luis: { A: 4, B: 0 }, eva: { A: 4, B: 0 } });
+    expect(three.outcome).toBe('shared-tie');
+    expect(three.slots!.map((sl) => sl.pick)).toEqual([1, 1, 1]);
+  });
+
+  it('empate dentro de la subasta que NO da fichas → recibe el otro ganador; los empatados pierden la puja', () => {
+    const r = resolveAuctions({ ana: { A: 8, B: 0 }, luis: { A: 8, B: 0 }, eva: { A: 0, B: 5 } });
     expect(r.outcome).toBe('normal');
     expect(r.recipient).toEqual({ playerId: 'eva', auction: 'B' });
     expect(r.coinsLost).toEqual({ ana: 8, luis: 8, eva: 5 });
   });
 
-  it('D4: con 3 o más empatados en una subasta → desempate aleatorio y anunciado', () => {
-    const winners = new Set<string>();
-    for (let seed = 1; seed < 60; seed++) {
-      const r = resolveAuctions({ ana: { A: 8, B: 0 }, luis: { A: 8, B: 0 }, eva: { A: 8, B: 0 } }, seeded(seed));
-      const w = r.winners.A!;
-      winners.add(w.playerId);
-      expect(r.outcome).toBe('single');
-      expect(w.coWinner).toBeNull();
-      expect(w.tiedWith.sort()).toEqual(['ana', 'eva', 'luis'].filter((p) => p !== w.playerId));
-      expect(r.coinsLost).toEqual({ [w.playerId]: 8 });
-    }
-    expect(winners).toEqual(new Set(['ana', 'luis', 'eva']));
-  });
-
-  it('si las dos subastas acaban con la misma puja, la pareja se desempata al azar y negocian los ganadores', () => {
-    const r = resolveAuctions({ ana: { A: 6, B: 0 }, luis: { A: 6, B: 0 }, eva: { A: 0, B: 6 } }, seeded(3));
-    expect(r.outcome).toBe('tie');
-    expect(r.winners.A!.coWinner).toBeNull();
-    expect(r.winners.A!.tiedWith).toHaveLength(1);
+  it('nunca usa el azar: el resultado no depende del orden de las pujas', () => {
+    const a = resolveAuctions({ ana: { A: 5, B: 0 }, luis: { A: 5, B: 0 }, eva: { A: 0, B: 5 } });
+    const b = resolveAuctions({ eva: { A: 0, B: 5 }, luis: { A: 5, B: 0 }, ana: { A: 5, B: 0 } });
+    expect(a).toEqual(b);
   });
 
   it('D5: el mismo jugador gana A y B → recibe donde pujó menos y pierde ambas', () => {
-    const r = resolveAuctions({ ana: { A: 9, B: 4 }, luis: { A: 2, B: 1 } }, rng);
+    const r = resolveAuctions({ ana: { A: 9, B: 4 }, luis: { A: 2, B: 1 } });
     expect(r.outcome).toBe('same-player');
     expect(r.recipient).toEqual({ playerId: 'ana', auction: 'B' });
     expect(r.coinsLost).toEqual({ ana: 13 });
   });
 
   it('D5: mismo jugador con la misma puja en ambas → elige él', () => {
-    const r = resolveAuctions({ ana: { A: 6, B: 6 } }, rng);
+    const r = resolveAuctions({ ana: { A: 6, B: 6 } });
     expect(r.outcome).toBe('same-player-choice');
     expect(r.recipient).toBeNull();
     expect(r.coinsLost).toEqual({ ana: 12 });
   });
 
+  it('alguien ganador en las dos subastas con empate A = B tiene plaza en ambas', () => {
+    const r = resolveAuctions({ ana: { A: 5, B: 5 }, luis: { A: 0, B: 5 } });
+    expect(r.outcome).toBe('tie');
+    expect(r.slots).toEqual([
+      { playerId: 'ana', auction: 'A', pick: 3 },
+      { playerId: 'ana', auction: 'B', pick: 2 },
+      { playerId: 'luis', auction: 'B', pick: 2 },
+    ]);
+  });
+
   it('D6: solo hay un ganador', () => {
-    const r = resolveAuctions({ ana: { A: 0, B: 3 }, luis: { A: 0, B: 2 } }, rng);
+    const r = resolveAuctions({ ana: { A: 0, B: 3 }, luis: { A: 0, B: 2 } });
     expect(r.outcome).toBe('single');
     expect(r.recipient).toEqual({ playerId: 'ana', auction: 'B' });
     expect(r.coinsLost).toEqual({ ana: 3 });
   });
 
   it('D7: nadie puja', () => {
-    const r = resolveAuctions({}, rng);
+    const r = resolveAuctions({});
     expect(r.outcome).toBe('none');
     expect(r.recipient).toBeNull();
     expect(r.coinsLost).toEqual({});
