@@ -7,6 +7,7 @@
  */
 import {
   MAX_COINS,
+  SHARED_TIE_PICK,
   NEGOTIATION_PICK,
   NEGOTIATION_TIME_LIMIT_S,
   STARTING_COINS,
@@ -59,8 +60,13 @@ export interface Negotiation {
   /** Último que rechazó una propuesta (solo informativo). */
   rejectedBy: string | null;
   deadline: number;
-  /** true = empataron en la misma subasta: no eligen fichas, colocan juntos las 5 de esa subasta. */
+  /**
+   * true = empataron en la misma subasta: cada uno elige SHARED_TIE_PICK de las 5 fichas (sin repetir
+   * las del otro) y las coloca él mismo, a la vez, sin propuesta ni aceptación.
+   */
   shared: boolean;
+  /** Solo en modo compartido: quién ya ha colocado sus fichas. */
+  placed: Record<string, boolean>;
 }
 
 export interface PlacementTask {
@@ -79,7 +85,9 @@ export type LogEntry =
   /** El anfitrión cambió las monedas de un jugador. */
   | { type: 'coins'; round: number; playerId: string; from: number; to: number }
   /** El anfitrión terminó la partida antes de tiempo. */
-  | { type: 'ended'; round: number };
+  | { type: 'ended'; round: number }
+  /** Empate en la misma subasta: quien no colocó a tiempo pierde sus fichas. */
+  | { type: 'missed'; round: number; playerIds: string[] };
 
 export type PublicResolution = Omit<Resolution, 'coinsLost'>;
 
@@ -117,6 +125,7 @@ export type GameAction =
   | { type: 'setCoins'; playerId: string; coins: number }
   | { type: 'endNow' }
   | { type: 'negPick'; indices: number[] }
+  | { type: 'negPlace'; placements: Placement[] }
   | { type: 'negPropose'; placements: Placement[] }
   | { type: 'negAccept' }
   | { type: 'negReject' }
@@ -266,6 +275,7 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
             rejectedBy: null,
             deadline: ctx.now + NEGOTIATION_TIME_LIMIT_S * 1000,
             shared: false,
+            placed: {},
           };
           break;
         }
@@ -277,11 +287,12 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
           s.negotiation = {
             players: [a, b],
             tokens: { [a]: pool, [b]: pool },
-            picks: { [a]: [], [b]: [] }, // no hay que elegir: se colocan las 5 entre los dos
+            picks: { [a]: null, [b]: null },
             proposal: null,
             rejectedBy: null,
             deadline: ctx.now + NEGOTIATION_TIME_LIMIT_S * 1000,
             shared: true,
+            placed: { [a]: false, [b]: false },
           };
           break;
         }
@@ -338,6 +349,7 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
     // ───────────── negociación (empate entre ganadores) ─────────────
 
     case 'negPick':
+    case 'negPlace':
     case 'negPropose':
     case 'negAccept':
     case 'negReject':
@@ -348,8 +360,39 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       if (!me || !n.players.includes(me)) return fail('No participas en esta negociación.');
       const other = n.players[0] === me ? n.players[1] : n.players[0];
 
+      if (n.shared) {
+        // Empate en la misma subasta: cada uno elige sus fichas y las coloca por su cuenta.
+        if (n.placed[me]) return fail('Ya has colocado tus fichas.');
+        if (action.type === 'negPick') {
+          const idx = action.indices;
+          if (
+            !Array.isArray(idx) ||
+            idx.length !== SHARED_TIE_PICK ||
+            new Set(idx).size !== SHARED_TIE_PICK ||
+            idx.some((i) => !Number.isInteger(i) || i < 0 || i >= n.tokens[me].length)
+          )
+            return fail(`Elige exactamente ${SHARED_TIE_PICK} fichas distintas.`);
+          if (idx.some((i) => n.picks[other]?.includes(i))) return fail('Esa ficha ya la ha elegido la otra persona.');
+          n.picks[me] = [...idx].sort((a, b) => a - b);
+          return ok();
+        }
+        if (action.type === 'negPlace') {
+          if (!n.picks[me]) return fail('Primero elige tus fichas.');
+          const mine = n.picks[me]!.map((i) => n.tokens[me][i]);
+          const err = validatePlacements(s.board, mine, action.placements);
+          if (err) return fail(err);
+          const placements = cleanPlacements(action.placements);
+          s.board = applyPlacements(s.board, placements);
+          s.log.push({ type: 'placement', round: s.round, playerIds: [me], placements, random: false });
+          n.placed[me] = true;
+          if (n.players.every((p) => n.placed[p])) closeNegotiation(s);
+          return ok();
+        }
+        return fail('En este empate cada uno coloca sus propias fichas.');
+      }
+
+      if (action.type === 'negPlace') return fail('En esta negociación hay que proponer y aceptar.');
       if (action.type === 'negPick') {
-        if (n.shared) return fail('En este empate no se eligen fichas: colocáis juntos las 5.');
         const idx = action.indices;
         if (
           !Array.isArray(idx) ||
@@ -390,8 +433,15 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
 
     case 'negExpire': {
       if (!isSystem) return fail('Acción reservada al servidor.');
-      if (s.phase !== 'NEGOCIACION' || !s.negotiation) return fail('No hay ninguna negociación en curso.');
-      if (ctx.now < s.negotiation.deadline) return fail('La negociación aún no ha caducado.');
+      const n = s.negotiation;
+      if (s.phase !== 'NEGOCIACION' || !n) return fail('No hay ninguna negociación en curso.');
+      if (ctx.now < n.deadline) return fail('La negociación aún no ha caducado.');
+      if (n.shared && n.players.some((p) => n.placed[p])) {
+        // quien ya colocó conserva sus fichas; las del que no llegó a tiempo se descartan
+        s.log.push({ type: 'missed', round: s.round, playerIds: n.players.filter((p) => !n.placed[p]) });
+        closeNegotiation(s);
+        return ok();
+      }
       nullRound(s, 'tiempo');
       return ok();
     }
@@ -423,6 +473,11 @@ function finishPlacement(s: GameState, playerIds: string[], placements: Placemen
   s.board = applyPlacements(s.board, placements);
   s.log.push({ type: 'placement', round: s.round, playerIds, placements, random });
   s.placement = null;
+  s.negotiation = null;
+  s.phase = 'RONDA_CERRADA';
+}
+
+function closeNegotiation(s: GameState) {
   s.negotiation = null;
   s.phase = 'RONDA_CERRADA';
 }

@@ -48,10 +48,12 @@ export const MAX_PLAYERS = 12;
 
 /**
  * [D4, cambiado a petición] Si EXACTAMENTE dos personas empatan con la puja más alta de una misma subasta
- * y esa subasta es la que da fichas, negocian juntas dónde colocar sus 5 fichas.
+ * y esa subasta es la que da fichas, cada una elige SHARED_TIE_PICK de sus 5 fichas y las coloca ella misma.
  * Con 3 o más empatadas (o en false) se desempata al azar.
  */
 export const SAME_AUCTION_TIE_NEGOTIATES = true;
+/** En ese empate, cada persona elige estas fichas (sin repetir las del otro) y las coloca ella misma. */
+export const SHARED_TIE_PICK = 2;
 
 /** [D9] Fichas que elige cada negociador y tiempo límite de la negociación. */
 export const NEGOTIATION_PICK = 3;

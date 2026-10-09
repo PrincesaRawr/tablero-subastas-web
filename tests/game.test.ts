@@ -176,21 +176,50 @@ describe('negociación', () => {
 });
 
 describe('empate en la misma subasta', () => {
-  it('los dos colocan juntos las 5 fichas de esa subasta', () => {
+  function toSharedTie() {
     let s = toOpenAuction(createGame(['ana', 'luis', 'eva'], seeded(11)));
     s = run(s, { type: 'bid', bid: { A: 4, B: 0 } }, 'ana');
     s = run(s, { type: 'bid', bid: { A: 4, B: 0 } }, 'luis');
-    s = run(s, { type: 'close' }, 'host', true);
+    return run(s, { type: 'close' }, 'host', true);
+  }
+
+  it('cada uno elige 2 fichas distintas a las del otro y las coloca a la vez', () => {
+    let s = toSharedTie();
     expect(s.phase).toBe('NEGOCIACION');
-    const n = s.negotiation!;
-    expect(n.shared).toBe(true);
-    expect(n.players).toEqual(['ana', 'luis']);
-    expect(negotiationTokens(n)).toEqual(s.auction!.A);
-    expect(tryRun(s, { type: 'negPick', indices: [0, 1, 2] }, 'ana')).toMatchObject({ ok: false });
+    expect(s.negotiation!.shared).toBe(true);
     expect(s.players.map((p) => p.coins)).toEqual([36, 36, 40]);
-    s = run(s, { type: 'negPropose', placements: firstFree(s, s.auction!.A) }, 'luis');
-    s = run(s, { type: 'negAccept' }, 'ana');
+    const pool = s.auction!.A;
+
+    expect(tryRun(s, { type: 'negPick', indices: [0, 1, 2] }, 'ana')).toMatchObject({ ok: false });
+    expect(tryRun(s, { type: 'negPick', indices: [0, 1] }, 'eva')).toMatchObject({ ok: false });
+    s = run(s, { type: 'negPick', indices: [0, 1] }, 'ana');
+    expect(tryRun(s, { type: 'negPick', indices: [1, 2] }, 'luis')).toEqual({
+      ok: false,
+      error: 'Esa ficha ya la ha elegido la otra persona.',
+    });
+    s = run(s, { type: 'negPick', indices: [3, 4] }, 'luis');
+    // no hay propuestas en este modo
+    expect(tryRun(s, { type: 'negPropose', placements: [] }, 'ana')).toMatchObject({ ok: false });
+
+    // Luis coloca primero; Ana no puede usar sus casillas
+    s = run(s, { type: 'negPlace', placements: firstFree(s, [pool[3], pool[4]]) }, 'luis');
+    expect(s.phase).toBe('NEGOCIACION');
+    expect(s.board.flat().filter(Boolean)).toHaveLength(2);
+    expect(tryRun(s, { type: 'negPick', indices: [2, 3] }, 'luis')).toMatchObject({ ok: false }); // ya colocó
+    expect(tryRun(s, { type: 'negPlace', placements: firstFree(s, [pool[3], pool[4]]) }, 'ana')).toMatchObject({ ok: false });
+    s = run(s, { type: 'negPlace', placements: firstFree(s, [pool[0], pool[1]]) }, 'ana');
     expect(s.phase).toBe('RONDA_CERRADA');
-    expect(s.board.flat().filter(Boolean)).toHaveLength(5);
+    expect(s.board.flat().filter(Boolean)).toHaveLength(4); // la quinta ficha se descarta
+  });
+
+  it('si se acaba el tiempo, quien colocó conserva sus fichas y el otro las pierde', () => {
+    let s = toSharedTie();
+    const pool = s.auction!.A;
+    s = run(s, { type: 'negPick', indices: [0, 1] }, 'ana');
+    s = run(s, { type: 'negPlace', placements: firstFree(s, [pool[0], pool[1]]) }, 'ana');
+    const r = gameReducer(s, { type: 'negExpire' }, { actorId: null, isHost: false, rng: seeded(1), now: s.negotiation!.deadline, settings });
+    expect(r.ok && r.state.phase).toBe('RONDA_CERRADA');
+    expect(r.ok && r.state.board.flat().filter(Boolean)).toHaveLength(2);
+    expect(r.ok && r.state.log.at(-1)).toEqual({ type: 'missed', round: 1, playerIds: ['luis'] });
   });
 });

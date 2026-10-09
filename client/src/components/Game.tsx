@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NEGOTIATION_PICK, type Color } from '../../../shared/config';
+import { NEGOTIATION_PICK, SHARED_TIE_PICK, type Color } from '../../../shared/config';
 import { applyPlacements, findOccurrences, type Cell } from '../../../shared/engine';
 import type { ClientView } from '../../../shared/view';
 import type { PeekedBid } from '../../../shared/protocol';
@@ -58,16 +58,21 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
   const bothReady = !!neg && neg.players.every((p) => neg.ready[p]);
   const sixTokens = useMemo<Color[]>(
     () =>
-      !amNegotiator || !bothReady
+      !amNegotiator
         ? NO_TOKENS
         : neg!.shared
-          ? neg!.tokens[neg!.players[0]]
-          : neg!.players.flatMap((p) => neg!.picks![p]!.map((i) => neg!.tokens[p][i])),
-    [amNegotiator, bothReady, neg],
+          ? // empate en la misma subasta: solo coloco mis fichas elegidas
+            neg!.picks![me.id] && !neg!.placed[me.id]
+            ? neg!.picks![me.id]!.map((i) => neg!.tokens[me.id][i])
+            : NO_TOKENS
+          : bothReady
+            ? neg!.players.flatMap((p) => neg!.picks![p]!.map((i) => neg!.tokens[p][i]))
+            : NO_TOKENS,
+    [amNegotiator, bothReady, neg, me.id],
   );
   const [counter, setCounter] = useState(false);
   useEffect(() => setCounter(false), [neg?.proposalBy, neg?.hasProposal, g.round]);
-  const drafting = amNegotiator && bothReady && (!neg!.hasProposal || counter);
+  const drafting = amNegotiator && (neg!.shared ? sixTokens.length > 0 : bothReady && (!neg!.hasProposal || counter));
   const negDraft = usePlacementDraft(sixTokens, `${g.round}-${sixTokens.join()}`);
 
   // ── tablero: fichas provisionales, clic y resaltado ──
@@ -510,7 +515,96 @@ function PlacePanel({ view, g, nameOf, placeDraft }: PanelProps) {
   );
 }
 
-function NegotiationPanel({ view, g, nameOf, negDraft, sixTokens, drafting, onCounter }: PanelProps) {
+function NegotiationPanel(props: PanelProps) {
+  if (props.g.negotiation!.shared) return <SharedTiePanel {...props} />;
+  return <SplitNegotiationPanel {...props} />;
+}
+
+/** Empate en la misma subasta: cada uno elige sus fichas (sin repetir) y las coloca a la vez. */
+function SharedTiePanel({ view, g, nameOf, negDraft, sixTokens, drafting }: PanelProps) {
+  const n = g.negotiation!;
+  const me = view.me.id;
+  const amIn = !!n.picks;
+  const other = n.players.find((p) => p !== me)!;
+  const [sel, setSel] = useState<number[]>([]);
+  useEffect(() => setSel(n.picks?.[me] ?? []), [g.round, n.picks?.[me]?.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const takenByOther = new Set(amIn ? (n.picks![other] ?? []) : []);
+
+  const status = (
+    <ul className="neg-status">
+      {n.players.map((p) => (
+        <li key={p}>
+          {nameOf(p)}: {n.placed[p] ? '✓ ya ha colocado' : n.ready[p] ? 'fichas elegidas, colocando…' : 'eligiendo fichas…'}
+        </li>
+      ))}
+    </ul>
+  );
+
+  return (
+    <>
+      <div className="panel-head">
+        <h3>🤝 Empate en la subasta {g.resolution?.sharedAuction}</h3>
+        <Countdown deadline={n.deadline} />
+      </div>
+      {!amIn ? (
+        <p>
+          {joinNames(n.players.map(nameOf))} han empatado: cada una elige {SHARED_TIE_PICK} fichas y las coloca.
+        </p>
+      ) : n.placed[me] ? (
+        <p>✓ Ya has colocado tus fichas. Esperando a {nameOf(other)}…</p>
+      ) : (
+        <>
+          <p className="hint">
+            Elige {SHARED_TIE_PICK} de las 5 fichas. No puedes coger las que ya ha elegido {nameOf(other)}. Después
+            colócalas en el tablero; {nameOf(other)} coloca las suyas a la vez.
+          </p>
+          <div className="neg-pick" role="group" aria-label="Fichas de la subasta">
+            {n.tokens[me].map((c, i) => {
+              const on = sel.includes(i);
+              const taken = takenByOther.has(i);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  aria-pressed={on}
+                  disabled={taken}
+                  title={taken ? `La ha elegido ${nameOf(other)}` : undefined}
+                  className={`tray-token${on ? ' selected' : ''}${taken ? ' used' : ''}`}
+                  onClick={() => setSel(on ? sel.filter((x) => x !== i) : sel.length < SHARED_TIE_PICK ? [...sel, i] : sel)}
+                >
+                  <Token color={c} size={42} />
+                </button>
+              );
+            })}
+          </div>
+          <button
+            className="btn small"
+            disabled={sel.length !== SHARED_TIE_PICK || sel.slice().sort().join() === (n.picks![me] ?? []).join()}
+            onClick={() => act({ type: 'negPick', indices: sel })}
+          >
+            {n.picks![me] ? 'Cambiar elección' : 'Confirmar elección'}
+          </button>
+          {drafting && (
+            <>
+              <h3>Coloca tus fichas</h3>
+              <DraftTray tokens={sixTokens} draft={negDraft} />
+              <button
+                className="btn primary wide"
+                disabled={!negDraft.complete}
+                onClick={() => act({ type: 'negPlace', placements: negDraft.placements })}
+              >
+                ✓ Colocar mis fichas
+              </button>
+            </>
+          )}
+        </>
+      )}
+      {status}
+    </>
+  );
+}
+
+function SplitNegotiationPanel({ view, g, nameOf, negDraft, sixTokens, drafting, onCounter }: PanelProps) {
   const n = g.negotiation!;
   const me = view.me.id;
   const amIn = !!n.picks;
@@ -537,23 +631,13 @@ function NegotiationPanel({ view, g, nameOf, negDraft, sixTokens, drafting, onCo
       {!amIn ? (
         <>
           <p>
-            {joinNames(n.players.map(nameOf))} están negociando cómo colocar {n.shared ? 5 : 6} fichas.
+            {joinNames(n.players.map(nameOf))} están negociando cómo colocar 6 fichas.
           </p>
-          {!n.shared && status}
+          {status}
           {n.hasProposal && <p className="muted">Hay una propuesta de {nameOf(n.proposalBy!)} sobre la mesa.</p>}
         </>
       ) : (
         <>
-          {n.shared ? (
-            <>
-              <p className="hint">
-                Habéis empatado en la misma subasta: entre los dos tenéis que decidir dónde van estas 5 fichas.
-                Cualquiera puede proponer y el otro acepta o rechaza.
-              </p>
-              <TokenRow tokens={n.tokens[me]} size={34} label="Fichas a colocar" />
-            </>
-          ) : (
-          <>
           <p className="hint">
             Elige {NEGOTIATION_PICK} de tus 5 fichas. Después, cualquiera de los dos puede proponer dónde van las 6.
           </p>
@@ -586,8 +670,6 @@ function NegotiationPanel({ view, g, nameOf, negDraft, sixTokens, drafting, onCo
             size={30}
           />
           {status}
-          </>
-          )}
 
           {drafting && (
             <>
