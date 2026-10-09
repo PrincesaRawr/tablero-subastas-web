@@ -1,0 +1,48 @@
+:role: 𝓔𝓥𝓔𝓝𝓣𝓞  𝓒𝓗𝓐𝓛𝓛𝓔𝓝𝓖𝓔  𝓢𝓔𝓜𝓐𝓝𝓐𝓛:role:
+Challenge semanal: Tablero de Subastas 
+
+
+:zverifyedpink:Información general:zverifyedpink:
+:reloj: Periodo de tiempo: Cuando tengamos suficientes participantes se harán votaciones para votar el día y la hora 
+📍 Zona de participación: ⁠〝・semanal・✒️
+ 
+:zverifylightpink: EXPLICACIÓN GENERAL:zverifylightpink:
+Tablero de Subastas es un juego de estrategia e ingenio para varios jugadores que combina subastas simultáneas con construcción de patrones en un tablero compartido de 8×8. Al inicio, cada jugador recibe en secreto una combinación única de 3 colores (por ejemplo: naranja → verde → azul). El objetivo es conseguir que esa secuencia aparezca el mayor número de veces posible en el tablero al final de la partida, ya sea en horizontal, vertical o diagonal, en cualquier dirección, siempre que el orden de los colores se mantenga.
+Para conseguir fichas y colocarlas en el tablero, los jugadores participan en subastas. Cada ronda tiene dos subastas simultáneas (A y B), cada una con 5 fichas de colores aleatorios. Con 40 monedas de presupuesto total y 10 rondas por partida, cada jugador debe decidir cuánto apostar, en cuál subasta y cuándo guardar recursos. El giro que lo hace único: de los dos ganadores de subasta de cada ronda, solo gana de verdad el que haya apostado menos. Esto convierte cada ronda en un duelo psicológico donde apostar demasiado puede costarte la victoria aunque "ganes" la puja. Existe además un caso especial de empate que obliga a los rivales a negociar, añadiendo una capa extra de tensión social al juego.
+:A_0ablackinterrogate:Como Funciona :A_0ablackinterrogate:
+:zanimatedarrowpink:Preparación
+      :zanimatedarrowwhite:El tablero es una cuadrícula de 8×8 casillas, compartida por todos.
+      :zanimatedarrowwhite:Las columnas son números (1–8) y las filas son letras (A–H)
+      ﻿﻿﻿:zanimatedarrowwhite:Cada jugador recibe una combinación secreta de 3 colores (ej: naranja, verde, azul). Todos tienen combinaciones diferentes.
+      :zanimatedarrowwhite:Cada jugador empieza con 40 monedas.
+
+:zanimatedarrowpink:Tu objetivo
+      :zanimatedarrowwhite:Que tu combinación de 3 colores aparezca el mayor número de veces en el tablero al acabar la partida.
+      :zanimatedarrowwhite:Vale en horizontal, vertical o diagonal, en cualquier dirección, siempre que el orden sea el correcto.
+
+:zanimatedarrowpink:Cómo funciona cada ronda
+      :zanimatedarrowwhite:Hay 10 rondas en total.
+      :zanimatedarrowwhite:Cada ronda tiene dos subastas: A y B, cada una con 5 fichas de colores al azar.
+      ﻿﻿﻿:zanimatedarrowwhite:Cada jugador puede elegir: no participar, apostar solo en A, solo en B, o en ambas a la vez.
+      :zanimatedarrowwhite:Las apuestas se hacen en secreto y se revelan a la vez (como una subasta ciega).
+      :zanimatedarrowwhite:Gana cada subasta quien haya apostado más en ella → salen dos "ganadores", uno por subasta.
+
+:zanimatedarrowpink:El giro clave
+      :zanimatedarrowwhite:De los dos ganadores, solo recibe las fichas el que haya apostado menos.
+      :zanimatedarrowwhite:Ejemplo: ganador A apostó 15 monedas, ganador B apostó 17 → gana el de la subasta A.
+      ﻿﻿﻿:zanimatedarrowwhite:El ganador real (A) coloca las 5 fichas donde quiera en el tablero indicando las posiciones en coordenadas: primero el color, luego letra de fila y número de columna.
+      :zanimatedarrowwhite:Ejemplo: Amarillo A3, Rojo C7, Verde F1...
+      :zanimatedarrowwhite: Las fichas de la subasta B se eliminan del juego.
+
+:zanimatedarrowpink:¿Y si empatan?
+      :zanimatedarrowwhite:Si ambos ganadores apostaron la misma cantidad, entran en modo negociación.
+      :zanimatedarrowwhite:Cada uno elige 3 fichas de las 5 que le corresponden y deben ponerse de acuerdo para colocarlas en el tablero, también indicando las posiciones en coordenadas.
+      :zanimatedarrowwhite:Si no llegan a un acuerdo, la ronda se da por nula: ninguno coloca fichas y los dos pierden las monedas apostadas.
+
+﻿:zanimatedarrowpink:﻿Las monedas
+      :zanimatedarrowwhite:Los dos ganadores de subasta (A y B) pierden sus monedas apostadas, hayan ganado fichas o no.﻿
+      :zanimatedarrowwhite:El resto de jugadores recuperan todas sus monedas apostadas esa ronda.﻿
+﻿﻿
+﻿:zanimatedarrowpink:﻿Final de la partida 
+      :zanimatedarrowwhite:Al terminar la ronda 10, se cuenta cuántas veces aparece la combinación de cada jugador en el tablero.﻿
+      :zanimatedarrowwhite:Gana quien más repeticiones tenga.
