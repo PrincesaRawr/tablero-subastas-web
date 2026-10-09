@@ -3,8 +3,15 @@
  * Todas las peticiones del cliente usan acuse (ack) con Ack<T>.
  * El servidor empuja la vista filtrada con el evento 'state'.
  */
+import type { Bid } from './engine.js';
 import type { GameAction, GameSettings } from './game.js';
 import type { ClientView } from './view.js';
+
+export interface PeekedBid {
+  playerId: string;
+  /** null = todavía no ha enviado nada. */
+  bid: Bid | null;
+}
 
 export type Ack<T = object> = (res: ({ ok: true } & T) | { ok: false; error: string }) => void;
 
@@ -22,7 +29,8 @@ export interface ClientToServer {
   'room:close': (p: object, ack: Ack) => void;
   'game:start': (p: object, ack: Ack) => void;
   'game:restart': (p: object, ack: Ack) => void;
-  'game:action': (p: ClientGameAction, ack: Ack) => void;
+  /** Para `peek`, la respuesta incluye las pujas actuales (solo al anfitrión). */
+  'game:action': (p: ClientGameAction, ack: Ack<{ bids?: PeekedBid[] }>) => void;
 }
 
 export interface ServerToClient {

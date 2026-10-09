@@ -63,13 +63,13 @@ describe('máquina de estados de la partida', () => {
     expect(tryRun(open, { type: 'negExpire' }, 'ana')).toMatchObject({ ok: false });
   });
 
-  it('se puede cambiar y retirar la puja mientras la subasta está abierta', () => {
+  it('se puede cambiar la puja mientras la subasta está abierta (0 y 0 = no pujar)', () => {
     let s = toOpenAuction(createGame(['ana', 'luis'], seeded(3)));
     s = run(s, { type: 'bid', bid: { A: 5, B: 0 } }, 'ana');
     s = run(s, { type: 'bid', bid: { A: 0, B: 7 } }, 'ana');
     expect(s.bids.ana).toEqual({ A: 0, B: 7 });
     s = run(s, { type: 'bid', bid: { A: 0, B: 0 } }, 'ana');
-    expect(s.bids.ana).toBeUndefined();
+    expect(s.bids.ana).toEqual({ A: 0, B: 0 });
   });
 
   it('D7: nadie puja → ronda cerrada sin efectos', () => {

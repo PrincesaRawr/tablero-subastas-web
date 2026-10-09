@@ -6,6 +6,7 @@
  * FICHAS → PUJAS_ABIERTAS → RESOLUCION → [NEGOCIACION] → COLOCACION → RONDA_CERRADA → … → FIN
  */
 import {
+  MAX_COINS,
   NEGOTIATION_PICK,
   NEGOTIATION_TIME_LIMIT_S,
   STARTING_COINS,
@@ -70,7 +71,13 @@ export interface PlacementTask {
 export type LogEntry =
   | { type: 'resolution'; round: number; resolution: PublicResolution }
   | { type: 'placement'; round: number; playerIds: string[]; placements: Placement[]; random: boolean }
-  | { type: 'null-round'; round: number; playerIds: string[]; reason: 'sin-acuerdo' | 'tiempo' };
+  | { type: 'null-round'; round: number; playerIds: string[]; reason: 'sin-acuerdo' | 'tiempo' }
+  /** El anfitrión miró las pujas de la subasta abierta (se avisa a todos). */
+  | { type: 'peek'; round: number; by: string }
+  /** El anfitrión cambió las monedas de un jugador. */
+  | { type: 'coins'; round: number; playerId: string; from: number; to: number }
+  /** El anfitrión terminó la partida antes de tiempo. */
+  | { type: 'ended'; round: number };
 
 export type PublicResolution = Omit<Resolution, 'coinsLost'>;
 
@@ -104,6 +111,9 @@ export type GameAction =
   | { type: 'place'; placements: Placement[] }
   | { type: 'forceRandom' }
   | { type: 'next' }
+  | { type: 'peek' }
+  | { type: 'setCoins'; playerId: string; coins: number }
+  | { type: 'endNow' }
   | { type: 'negPick'; indices: number[] }
   | { type: 'negPropose'; placements: Placement[] }
   | { type: 'negAccept' }
@@ -180,8 +190,47 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       const clean: Bid = { A: bid.A, B: bid.B };
       const err = validateBid(player.coins, clean);
       if (err) return fail(err);
-      if (clean.A === 0 && clean.B === 0) delete s.bids[player.id];
-      else s.bids[player.id] = clean;
+      // 0 y 0 = "no pujo esta ronda": cuenta como enviada, pero no participa en ninguna subasta
+      s.bids[player.id] = clean;
+      return ok();
+    }
+
+    case 'peek': {
+      if (!ctx.isHost || !ctx.actorId) return fail('Solo el anfitrión puede mirar las pujas.');
+      if (s.phase !== 'PUJAS_ABIERTAS') return fail('Solo se pueden mirar las pujas con la subasta abierta.');
+      s.log.push({ type: 'peek', round: s.round, by: ctx.actorId });
+      return ok();
+    }
+
+    case 'setCoins': {
+      if (!ctx.isHost) return fail('Solo el anfitrión puede cambiar las monedas.');
+      if (s.phase === 'FIN') return fail('La partida ya ha terminado.');
+      const target = s.players.find((p) => p.id === action.playerId);
+      if (!target) return fail('Ese jugador no está en la partida.');
+      const coins = action.coins;
+      if (typeof coins !== 'number' || !Number.isInteger(coins) || coins < 0 || coins > MAX_COINS)
+        return fail(`Las monedas tienen que ser un número entero entre 0 y ${MAX_COINS}.`);
+      const bid = s.phase === 'PUJAS_ABIERTAS' ? s.bids[target.id] : undefined;
+      if (bid && bid.A + bid.B > coins)
+        return fail(`Ese jugador ya ha pujado ${bid.A + bid.B}; no puedes dejarle con menos mientras la subasta esté abierta.`);
+      if (coins === target.coins) return ok();
+      s.log.push({ type: 'coins', round: s.round, playerId: target.id, from: target.coins, to: coins });
+      target.coins = coins;
+      return ok();
+    }
+
+    case 'endNow': {
+      if (!ctx.isHost) return fail('Solo el anfitrión puede terminar la partida.');
+      if (s.phase === 'FIN') return fail('La partida ya ha terminado.');
+      s.log.push({ type: 'ended', round: s.round });
+      s.phase = 'FIN';
+      s.results = computeFinalResults(s.board, s.players);
+      s.auction = null;
+      s.auctionDeadline = null;
+      s.bids = {};
+      s.resolution = null;
+      s.placement = null;
+      s.negotiation = null;
       return ok();
     }
 

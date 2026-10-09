@@ -133,3 +133,10 @@ Todo está en `shared/config.ts` para que lo puedas cambiar.
 - **"Nueva partida con los mismos jugadores"**: empieza ya una partida nueva (tablero vacío, 40 monedas, combinaciones nuevas) con quienes estaban jugando.
 - **Salas abandonadas**: se borran tras 30 minutos sin nadie conectado (`EMPTY_ROOM_TTL_MS`).
 - **Código de sala**: 4 letras sin I ni O para evitar confusiones (`ROOM_CODE_LENGTH`, `ROOM_CODE_ALPHABET`).
+
+### Herramientas del anfitrión (añadidas después)
+
+- **Ver pujas de todos**: con la subasta abierta, el anfitrión puede ver las pujas actuales. Cada vez que mira, queda en el historial ("👀 Ana ha mirado las pujas") y a los demás les sale un aviso. Las pujas solo llegan al anfitrión que las pide, nunca en la vista del resto.
+- **Enviar sin pujar**: enviar 0 y 0 cuenta como "enviado" (✓ en la lista de jugadores) sin participar en ninguna subasta. Se puede cambiar mientras la subasta siga abierta. Sustituye al antiguo botón "Retirar puja".
+- **Añadir o quitar monedas**: botón **±** junto a cada jugador (0 a `MAX_COINS`). Queda en el historial y se avisa a todos. Con la subasta abierta no se puede dejar a nadie con menos monedas de las que ya ha pujado.
+- **Terminar partida ahora** y **Cerrar sala**: en "⚙️ Controles del anfitrión" durante la partida. Terminar cuenta las apariciones con el tablero tal y como está.

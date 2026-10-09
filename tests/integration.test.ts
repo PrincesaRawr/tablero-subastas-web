@@ -161,6 +161,17 @@ describe('partida completa con 3 clientes Socket.IO', () => {
         expect(tooMuch.error).toBe('Tu puja supera tus monedas disponibles.');
         await ok(evaClient, 'game:action', { type: 'bid', bid: { A: 0, B: 1 } });
         await settle(clients, (v) => v.members.filter((m) => m.hasBid).length === 3);
+        if (round === 1) {
+          // El anfitrión mira las pujas: le llegan solo a él (en la respuesta) y todos ven el aviso
+          expect((await luis.call('game:action', { type: 'peek' })).error).toBe('Solo el anfitrión puede mirar las pujas.');
+          const peek = await ok(host, 'game:action', { type: 'peek' });
+          expect(Object.fromEntries(peek.bids.map((b: any) => [b.playerId, b.bid]))).toEqual({
+            [ids.Ana]: { A: 1, B: 0 },
+            [ids.Luis]: { A: 0, B: 2 },
+            [ids.Eva]: { A: 0, B: 1 },
+          });
+          await settle(clients, (v) => v.game!.log.some((e) => e.type === 'peek' && e.by === ids.Ana));
+        }
         // Luis intenta cerrar: no es anfitrión
         expect((await luis.call('game:action', { type: 'close' })).ok).toBe(false);
         await ok(host, 'game:action', { type: 'close' });

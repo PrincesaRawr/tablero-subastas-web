@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NEGOTIATION_PICK, type Color } from '../../../shared/config';
 import { applyPlacements, findOccurrences, type Cell } from '../../../shared/engine';
 import type { ClientView } from '../../../shared/view';
-import { act, call, forgetSession } from '../store';
+import type { PeekedBid } from '../../../shared/protocol';
+import { act, call, forgetSession, showToast } from '../store';
 import { PHASE_LABEL, joinNames, logText, nameResolver, resolutionVerdict, winnerLine, type NameOf } from '../text';
 import { usePlacementDraft, type PlacementDraft } from '../usePlacementDraft';
 import { Board } from './Board';
@@ -31,6 +32,16 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
   const g = view.game!;
   const me = view.me;
   const nameOf = nameResolver(view);
+
+  // Aviso a todos cuando el anfitrión mira las pujas o cambia monedas (solo entradas nuevas).
+  const seenLog = useRef(g.log.length);
+  useEffect(() => {
+    const fresh = g.log.slice(seenLog.current);
+    seenLog.current = g.log.length;
+    for (const e of fresh) {
+      if ((e.type === 'peek' && e.by !== me.id) || e.type === 'coins') showToast(logText(e, nameOf), 'info');
+    }
+  }, [g.log.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [comboVisible, setComboVisible] = useState(() => readPref('ts:combo-visible', true));
   const [highlightMine, setHighlightMine] = useState(false);
@@ -144,6 +155,7 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
           />
           <Players view={view} g={g} />
           <History g={g} nameOf={nameOf} />
+          {me.isHost && g.phase !== 'FIN' && <HostTools />}
         </aside>
       </div>
     </main>
@@ -336,28 +348,29 @@ function BidPanel({ view, g }: PanelProps) {
           <p className={`bid-summary${over ? ' error' : ''}`}>
             {over ? 'Tu puja supera tus monedas disponibles.' : `Disponibles: ${coins} · Te quedarían: ${left}`}
           </p>
-          <p className="hint">0 = no participas en esa subasta. Es secreta: nadie ve las cantidades.</p>
+          <p className="hint">
+            0 = no participas en esa subasta. Puedes enviar 0 y 0 para no pujar esta ronda. Las cantidades son secretas
+            (solo el anfitrión puede mirarlas, y si lo hace se avisa a todos).
+          </p>
           <div className="row-buttons">
-            <button className="btn primary" type="submit" disabled={over || !changed || coins === 0}>
-              {me.bid ? 'Actualizar puja' : 'Enviar puja'}
+            <button className="btn primary" type="submit" disabled={over || (!!me.bid && !changed)}>
+              {numA === 0 && numB === 0 ? '🙅 Enviar sin pujar' : me.bid ? 'Actualizar puja' : 'Enviar puja'}
             </button>
-            {me.bid && (
-              <button className="btn ghost small" type="button" onClick={() => act({ type: 'bid', bid: { A: 0, B: 0 } })}>
-                Retirar puja
-              </button>
-            )}
           </div>
           {me.bid && (
             <p className="sent">
-              ✓ Puja enviada: A {me.bid.A} · B {me.bid.B}
+              {me.bid.A === 0 && me.bid.B === 0
+                ? '✓ Enviado: no pujas esta ronda'
+                : `✓ Puja enviada: A ${me.bid.A} · B ${me.bid.B}`}
             </p>
           )}
-          {coins === 0 && <p className="hint">No te quedan monedas: esta ronda solo puedes mirar.</p>}
+          {coins === 0 && <p className="hint">No te quedan monedas: esta ronda solo puedes enviar sin pujar.</p>}
         </form>
       )}
       <p className="muted small">
-        Han pujado {bidders} de {players.length}
+        Han enviado {bidders} de {players.length}
       </p>
+      {view.me.isHost && <HostPeek view={view} g={g} />}
       {view.me.isHost && (
         <div className="row-buttons">
           <button className="btn primary" onClick={() => act({ type: 'close' })}>
@@ -366,6 +379,57 @@ function BidPanel({ view, g }: PanelProps) {
         </div>
       )}
     </>
+  );
+}
+
+/** El anfitrión puede ver las pujas; cada vez que mira, queda registrado y se avisa a todos. */
+function HostPeek({ view, g }: { view: ClientView; g: GameView }) {
+  const [bids, setBids] = useState<PeekedBid[] | null>(null);
+  useEffect(() => setBids(null), [g.round, g.phase]);
+  const nameOf = nameResolver(view);
+
+  const peek = async () => {
+    if (!bids && !confirm('Todos verán en el historial que has mirado las pujas. ¿Mirar?')) return;
+    const res = await act({ type: 'peek' });
+    if (res?.bids) setBids(res.bids);
+  };
+
+  return (
+    <div className="peek">
+      <button className="btn ghost small" onClick={peek}>
+        👀 {bids ? 'Actualizar pujas' : 'Ver pujas de todos'}
+      </button>
+      {bids && (
+        <table className="peek-table">
+          <thead>
+            <tr>
+              <th>Jugador</th>
+              <th>A</th>
+              <th>B</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bids.map(({ playerId, bid }) => (
+              <tr key={playerId}>
+                <td>{nameOf(playerId)}</td>
+                {bid ? (
+                  bid.A === 0 && bid.B === 0 ? (
+                    <td colSpan={2} className="muted">no puja</td>
+                  ) : (
+                    <>
+                      <td>{bid.A || '—'}</td>
+                      <td>{bid.B || '—'}</td>
+                    </>
+                  )
+                ) : (
+                  <td colSpan={2} className="muted">sin enviar</td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
 
@@ -625,6 +689,8 @@ function FinalPanel({ view, g, nameOf, finalHighlight, setFinalHighlight }: Pane
 // ───────────────────────── jugadores e historial ─────────────────────────
 
 function Players({ view, g }: { view: ClientView; g: GameView }) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const canEdit = view.me.isHost && g.phase !== 'FIN';
   return (
     <section className="card">
       <h3>Jugadores</h3>
@@ -640,15 +706,110 @@ function Players({ view, g }: { view: ClientView; g: GameView }) {
                 {m.id === view.me.id && <span className="muted"> (tú)</span>}
               </span>
               {g.phase === 'PUJAS_ABIERTAS' && m.inGame && (
-                <span className={`bid-flag${m.hasBid ? ' yes' : ''}`}>{m.hasBid ? '✓ ha pujado' : '…'}</span>
+                <span className={`bid-flag${m.hasBid ? ' yes' : ''}`}>{m.hasBid ? '✓ ha enviado' : '…'}</span>
               )}
               {final && <span className="badge">{final.count} ✦</span>}
-              {m.inGame ? <span className="coins-tag">🪙 {m.coins}</span> : <span className="muted small">anfitrión</span>}
+              {m.inGame ? (
+                editing === m.id ? (
+                  <CoinEditor
+                    current={m.coins ?? 0}
+                    onDone={async (coins) => {
+                      if (coins === null || (await act({ type: 'setCoins', playerId: m.id, coins }))) setEditing(null);
+                    }}
+                  />
+                ) : (
+                  <>
+                    <span className="coins-tag">🪙 {m.coins}</span>
+                    {canEdit && (
+                      <button
+                        className="btn ghost small coin-edit"
+                        onClick={() => setEditing(m.id)}
+                        aria-label={`Cambiar monedas de ${m.name}`}
+                        title="Añadir o quitar monedas"
+                      >
+                        ±
+                      </button>
+                    )}
+                  </>
+                )
+              ) : (
+                <span className="muted small">anfitrión</span>
+              )}
             </li>
           );
         })}
       </ul>
     </section>
+  );
+}
+
+function CoinEditor({ current, onDone }: { current: number; onDone: (coins: number | null) => void }) {
+  const [value, setValue] = useState(String(current));
+  const n = Math.max(0, Math.floor(Number(value) || 0));
+  const step = (d: number) => setValue(String(Math.max(0, n + d)));
+  return (
+    <form
+      className="coin-editor"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onDone(n);
+      }}
+    >
+      <button type="button" className="btn ghost small" onClick={() => step(-5)}>
+        −5
+      </button>
+      <button type="button" className="btn ghost small" onClick={() => step(-1)}>
+        −1
+      </button>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        aria-label="Monedas"
+        autoFocus
+      />
+      <button type="button" className="btn ghost small" onClick={() => step(1)}>
+        +1
+      </button>
+      <button type="button" className="btn ghost small" onClick={() => step(5)}>
+        +5
+      </button>
+      <button type="submit" className="btn primary small">
+        Guardar
+      </button>
+      <button type="button" className="btn ghost small" onClick={() => onDone(null)} aria-label="Cancelar">
+        ✕
+      </button>
+    </form>
+  );
+}
+
+/** Controles extra del anfitrión durante la partida. */
+function HostTools() {
+  return (
+    <details className="card host-tools">
+      <summary>⚙️ Controles del anfitrión</summary>
+      <p className="hint">Usa el botón ± de la lista de jugadores para añadir o quitar monedas.</p>
+      <div className="row-buttons">
+        <button
+          className="btn ghost"
+          onClick={() =>
+            confirm('¿Terminar la partida ahora? Se contarán las apariciones con el tablero tal y como está.') &&
+            act({ type: 'endNow' })
+          }
+        >
+          🏁 Terminar partida ahora
+        </button>
+        <button
+          className="btn ghost danger"
+          onClick={() => confirm('¿Cerrar la sala? Se echará a todos y se perderá la partida.') && call('room:close', {})}
+        >
+          ✖ Cerrar sala
+        </button>
+      </div>
+    </details>
   );
 }
 

@@ -59,5 +59,13 @@ export function logText(e: LogEntry, nameOf: NameOf): string {
       return `${joinNames(e.playerIds.map(nameOf))}${e.random ? ' (al azar)' : ''}: ${formatPlacements(e.placements)}`;
     case 'null-round':
       return `Ronda nula: ${joinNames(e.playerIds.map(nameOf))} ${e.reason === 'tiempo' ? 'agotaron el tiempo' : 'no llegaron a un acuerdo'}. Ambos pierden su puja.`;
+    case 'peek':
+      return `👀 ${nameOf(e.by)} ha mirado las pujas.`;
+    case 'coins': {
+      const diff = e.to - e.from;
+      return `🪙 El anfitrión ${diff > 0 ? `ha dado ${diff}` : `ha quitado ${-diff}`} ${Math.abs(diff) === 1 ? 'moneda' : 'monedas'} a ${nameOf(e.playerId)} (${e.from} → ${e.to}).`;
+    }
+    case 'ended':
+      return '🏁 El anfitrión ha terminado la partida antes de tiempo.';
   }
 }

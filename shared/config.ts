@@ -31,6 +31,8 @@ export const BOARD_SIZE = 8;
 export const COLUMN_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
 
 export const STARTING_COINS = 40;
+/** Máximo de monedas que el anfitrión puede asignar a un jugador. */
+export const MAX_COINS = 999;
 export const TOTAL_ROUNDS = 10;
 export const TOKENS_PER_AUCTION = 5;
 

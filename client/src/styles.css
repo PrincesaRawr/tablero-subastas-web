@@ -1056,3 +1056,56 @@ input::placeholder {
     stroke-dashoffset: 0;
   }
 }
+
+/* ───────── herramientas del anfitrión ───────── */
+.peek {
+  margin: 0.5rem 0;
+  padding: 0.5rem;
+  border-radius: 12px;
+  background: #ffd45e12;
+  border: 1px dashed #c99a2a;
+}
+.peek-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  font-size: 0.92rem;
+}
+.peek-table th,
+.peek-table td {
+  text-align: left;
+  padding: 0.25rem 0.4rem;
+  border-bottom: 1px solid #ffffff14;
+}
+.peek-table td:nth-child(2),
+.peek-table td:nth-child(3) {
+  color: var(--gold);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.coin-edit {
+  min-height: 30px;
+  min-width: 30px;
+  padding: 0 0.5rem;
+}
+.coin-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  width: 100%;
+}
+.coin-editor input {
+  width: 4.5em;
+  min-height: 36px;
+  padding: 0.25rem 0.4rem;
+  text-align: center;
+}
+.host-tools summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.history .log-peek,
+.history .log-coins {
+  color: var(--gold);
+}
