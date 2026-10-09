@@ -259,3 +259,27 @@ describe('partida completa con 3 clientes Socket.IO', () => {
     for (const x of [host, a, b, c]) x.socket.disconnect();
   });
 });
+
+describe('cierre automático', () => {
+  it('la subasta se cierra sola 5 s después de que todos hayan pujado', async () => {
+    const host = await client();
+    const { code } = await ok(host, 'room:create', { name: 'Ana', playing: true });
+    const luis = await client();
+    await ok(luis, 'room:join', { code, name: 'Luis' });
+    await ok(host, 'game:start');
+    await ok(host, 'game:action', { type: 'deal' });
+    await ok(host, 'game:action', { type: 'open' });
+    await ok(host, 'game:action', { type: 'bid', bid: { A: 2, B: 0 } });
+    const t0 = Date.now();
+    await ok(luis, 'game:action', { type: 'bid', bid: { A: 0, B: 0 } });
+    const v = await new Promise<ClientView>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('no se cerró sola')), 8000);
+      host.socket.on('state', (x) => x.game?.phase === 'COLOCACION' && (clearTimeout(t), resolve(x)));
+    });
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(4900);
+    expect(v.game!.placement!.playerId).toBe(v.me.id);
+    await ok(host, 'room:close');
+    host.socket.disconnect();
+    luis.socket.disconnect();
+  }, 12_000);
+});

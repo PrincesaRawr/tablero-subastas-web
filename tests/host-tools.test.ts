@@ -66,3 +66,22 @@ describe('herramientas del anfitrión', () => {
     expect(s.log.at(-1)).toEqual({ type: 'ended', round: 1 });
   });
 });
+
+describe('cierre automático de la subasta', () => {
+  it('cuando todos han enviado, programa el cierre a los 5 s; un cambio lo reinicia', () => {
+    const at = (s: GameState, action: GameAction, actorId: string, now: number) => {
+      const r = gameReducer(s, action, { actorId, isHost: false, rng: seeded(1), now, settings });
+      if (!r.ok) throw new Error(r.error);
+      return r.state;
+    };
+    let s = open(createGame(['ana', 'luis'], seeded(1)));
+    s = at(s, { type: 'bid', bid: { A: 3, B: 0 } }, 'ana', 1000);
+    expect(s.autoCloseAt).toBeNull(); // falta Luis
+    s = at(s, { type: 'bid', bid: { A: 0, B: 0 } }, 'luis', 2000); // enviar sin pujar también cuenta
+    expect(s.autoCloseAt).toBe(7000);
+    s = at(s, { type: 'bid', bid: { A: 4, B: 0 } }, 'ana', 4000);
+    expect(s.autoCloseAt).toBe(9000);
+    s = run(s, { type: 'close' }, 'host', true);
+    expect(s.autoCloseAt).toBeNull();
+  });
+});

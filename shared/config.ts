@@ -63,6 +63,8 @@ export const NEGOTIATION_TIME_LIMIT_S = 120;
 export const DEFAULT_AUCTION_TIMER_S = 0;
 export const DEFAULT_PLACEMENT_TIMER_S = 0;
 export const MAX_TIMER_S = 600;
+/** Cuando todos los jugadores han enviado su puja, la subasta se cierra sola tras estos segundos sin cambios (0 = nunca). */
+export const AUTO_CLOSE_AFTER_ALL_BIDS_S = 5;
 
 /** Código de sala: longitud y alfabeto (sin letras confusas como I/O). */
 export const ROOM_CODE_LENGTH = 4;

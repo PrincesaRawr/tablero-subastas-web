@@ -70,6 +70,7 @@ export interface ClientView {
     board: Board;
     auction: { A: Color[]; B: Color[] } | null;
     auctionDeadline: number | null;
+    autoCloseAt: number | null;
     resolution: PublicResolution | null;
     placement: PlacementTask | null;
     negotiation: PublicNegotiation | null;
@@ -136,6 +137,7 @@ export function buildView(room: RoomSnapshot, viewerId: string, now: number): Cl
       board: g.board,
       auction: g.auction,
       auctionDeadline: g.auctionDeadline,
+      autoCloseAt: g.autoCloseAt,
       resolution: g.resolution ? publicResolution(g.resolution) : null,
       placement: g.placement,
       negotiation,

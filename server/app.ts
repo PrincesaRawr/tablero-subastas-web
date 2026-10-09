@@ -121,7 +121,10 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
     if (!g) return;
     let at: number | null = null;
     let action: GameAction | null = null;
-    if (g.phase === 'PUJAS_ABIERTAS' && g.auctionDeadline) [at, action] = [g.auctionDeadline, { type: 'close' }];
+    if (g.phase === 'PUJAS_ABIERTAS' && (g.auctionDeadline || g.autoCloseAt)) {
+      const times = [g.auctionDeadline, g.autoCloseAt].filter((t): t is number => t !== null);
+      [at, action] = [Math.min(...times), { type: 'close' }];
+    }
     else if (g.phase === 'NEGOCIACION' && g.negotiation) [at, action] = [g.negotiation.deadline, { type: 'negExpire' }];
     else if (g.phase === 'COLOCACION' && g.placement?.deadline) [at, action] = [g.placement.deadline, { type: 'forceRandom' }];
     if (at === null || !action) return;

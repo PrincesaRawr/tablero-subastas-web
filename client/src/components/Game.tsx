@@ -356,6 +356,11 @@ function BidPanel({ view, g }: PanelProps) {
         <h2>¡Subasta abierta!</h2>
         <Countdown deadline={g.auctionDeadline} />
       </div>
+      {g.autoCloseAt && (
+        <p className="auto-close" role="status" key={g.autoCloseAt}>
+          ✅ Todos han enviado su puja. Se cierra sola en <Countdown deadline={g.autoCloseAt} /> si nadie la cambia.
+        </p>
+      )}
       <Auctions g={g} />
       {me.inGame && (
         <form

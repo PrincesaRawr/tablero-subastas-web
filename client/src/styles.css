@@ -1109,3 +1109,13 @@ input::placeholder {
 .history .log-coins {
   color: var(--gold);
 }
+
+.auto-close {
+  padding: 0.5rem 0.7rem;
+  border-radius: 12px;
+  background: #7be0a61f;
+  border: 1px solid #7be0a666;
+  color: var(--ok);
+  font-weight: 600;
+  animation: reveal-in 0.3s ease-out;
+}

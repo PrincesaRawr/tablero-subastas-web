@@ -6,6 +6,7 @@
  * FICHAS → PUJAS_ABIERTAS → RESOLUCION → [NEGOCIACION] → COLOCACION → RONDA_CERRADA → … → FIN
  */
 import {
+  AUTO_CLOSE_AFTER_ALL_BIDS_S,
   MAX_COINS,
   SHARED_TIE_PICK,
   NEGOTIATION_PICK,
@@ -99,6 +100,8 @@ export interface GameState {
   players: GamePlayer[];
   auction: { A: Color[]; B: Color[] } | null;
   auctionDeadline: number | null;
+  /** Cierre automático: todos han enviado su puja y no hay cambios hasta este momento. */
+  autoCloseAt: number | null;
   bids: Record<string, Bid>;
   resolution: Resolution | null;
   placement: PlacementTask | null;
@@ -151,6 +154,7 @@ export function createGame(playerIds: string[], rng: Rng): GameState {
     players: playerIds.map((id, i) => ({ id, combo: combos[i], coins: STARTING_COINS })),
     auction: null,
     auctionDeadline: null,
+    autoCloseAt: null,
     bids: {},
     resolution: null,
     placement: null,
@@ -188,6 +192,7 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       s.phase = 'PUJAS_ABIERTAS';
       s.bids = {};
       s.auctionDeadline = ctx.settings.auctionTimerS > 0 ? ctx.now + ctx.settings.auctionTimerS * 1000 : null;
+      s.autoCloseAt = null;
       return ok();
     }
 
@@ -201,6 +206,9 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       if (err) return fail(err);
       // 0 y 0 = "no pujo esta ronda": cuenta como enviada, pero no participa en ninguna subasta
       s.bids[player.id] = clean;
+      // Si ya han enviado todos, empieza (o vuelve a empezar) la cuenta atrás para cerrar sola.
+      const everyone = s.players.every((p) => s.bids[p.id]);
+      s.autoCloseAt = everyone && AUTO_CLOSE_AFTER_ALL_BIDS_S > 0 ? ctx.now + AUTO_CLOSE_AFTER_ALL_BIDS_S * 1000 : null;
       return ok();
     }
 
@@ -236,6 +244,7 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       s.results = computeFinalResults(s.board, s.players);
       s.auction = null;
       s.auctionDeadline = null;
+      s.autoCloseAt = null;
       s.bids = {};
       s.resolution = null;
       s.placement = null;
@@ -251,6 +260,7 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       for (const p of s.players) p.coins = coins[p.id];
       s.resolution = res;
       s.auctionDeadline = null;
+      s.autoCloseAt = null;
       s.bids = {};
       s.log.push({ type: 'resolution', round: s.round, resolution: publicResolution(res) });
 
