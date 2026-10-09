@@ -4,7 +4,7 @@ import { createGame, gameReducer, myTokens, type GameAction, type GameState } fr
 import { freeCells, type Placement } from '../shared/engine.js';
 import { seeded } from './helpers.js';
 
-const settings = { auctionTimerS: 0, placementTimerS: 0 };
+const settings = { auctionTimerS: 0, placementTimerS: 0, startingCoins: 40 };
 let clock = 1_000_000;
 
 function run(s: GameState, action: GameAction, actorId: string | null, isHost = false): GameState {

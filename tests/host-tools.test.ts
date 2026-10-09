@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createGame, gameReducer, type GameAction, type GameState } from '../shared/game.js';
 import { seeded } from './helpers.js';
 
-const settings = { auctionTimerS: 0, placementTimerS: 0 };
+const settings = { auctionTimerS: 0, placementTimerS: 0, startingCoins: 40 };
 const run = (s: GameState, action: GameAction, actorId: string, isHost = false) => {
   const r = gameReducer(s, action, { actorId, isHost, rng: seeded(1), now: 1, settings });
   if (!r.ok) throw new Error(r.error);

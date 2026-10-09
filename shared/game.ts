@@ -113,6 +113,8 @@ export interface GameState {
 export interface GameSettings {
   auctionTimerS: number;
   placementTimerS: number;
+  /** Monedas con las que empieza cada jugador (lo elige el anfitrión en el lobby). */
+  startingCoins: number;
 }
 
 export type GameAction =
@@ -144,14 +146,14 @@ export interface ActionContext {
 
 export type ReducerResult = { ok: true; state: GameState } | { ok: false; error: string };
 
-export function createGame(playerIds: string[], rng: Rng): GameState {
+export function createGame(playerIds: string[], rng: Rng, startingCoins: number = STARTING_COINS): GameState {
   const combos = assignCombos(playerIds.length, rng);
   return {
     phase: 'FICHAS',
     round: 1,
     totalRounds: TOTAL_ROUNDS,
     board: emptyBoard(),
-    players: playerIds.map((id, i) => ({ id, combo: combos[i], coins: STARTING_COINS })),
+    players: playerIds.map((id, i) => ({ id, combo: combos[i], coins: startingCoins })),
     auction: null,
     auctionDeadline: null,
     autoCloseAt: null,

@@ -23,7 +23,7 @@ export function App() {
       <div className="sky" aria-hidden="true" />
       {!connected && <div className="offline-banner">Sin conexión con el servidor. Reconectando…</div>}
       {screen}
-      {rules && <RulesModal onClose={() => setRules(false)} />}
+      {rules && <RulesModal onClose={() => setRules(false)} startingCoins={view?.settings.startingCoins} />}
       {toast && (
         <div className={`toast ${toast.kind}`} role={toast.kind === 'error' ? 'alert' : 'status'} onClick={dismissToast}>
           {toast.text}

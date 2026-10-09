@@ -8,12 +8,14 @@ import {
   DEFAULT_AUCTION_TIMER_S,
   DEFAULT_PLACEMENT_TIMER_S,
   EMPTY_ROOM_TTL_MS,
+  MAX_COINS,
   MAX_NAME_LENGTH,
   MAX_PLAYERS,
   MAX_TIMER_S,
   MIN_PLAYERS,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
+  STARTING_COINS,
 } from '../shared/config.js';
 import type { Rng } from '../shared/engine.js';
 import { createGame, gameReducer, type GameAction, type GameSettings, type GameState } from '../shared/game.js';
@@ -186,7 +188,7 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
     const players = room.members.filter((m) => m.isPlaying);
     if (players.length < MIN_PLAYERS) throw new UserError(`Hacen falta al menos ${MIN_PLAYERS} jugadores.`);
     if (players.length > MAX_PLAYERS) throw new UserError(`Como máximo pueden jugar ${MAX_PLAYERS} personas.`);
-    room.game = createGame(players.map((m) => m.id), rng);
+    room.game = createGame(players.map((m) => m.id), rng, room.settings.startingCoins);
   };
 
   /** Envuelve un manejador: captura errores y responde por el ack. */
@@ -211,7 +213,11 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
         code: newCode(),
         hostId: newId(),
         members: [],
-        settings: { auctionTimerS: DEFAULT_AUCTION_TIMER_S, placementTimerS: DEFAULT_PLACEMENT_TIMER_S },
+        settings: {
+          auctionTimerS: DEFAULT_AUCTION_TIMER_S,
+          placementTimerS: DEFAULT_PLACEMENT_TIMER_S,
+          startingCoins: STARTING_COINS,
+        },
         game: null,
         timer: null,
         emptySince: null,
@@ -292,7 +298,12 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
         if (!Number.isFinite(n) || n < 0 || n > MAX_TIMER_S) throw new UserError(`Los temporizadores van de 0 a ${MAX_TIMER_S} s.`);
         return n;
       };
-      room.settings = { auctionTimerS: clamp(p.auctionTimerS), placementTimerS: clamp(p.placementTimerS) };
+      const coins = Math.round(Number(p.startingCoins));
+      if (!Number.isFinite(coins) || coins < 1 || coins > MAX_COINS)
+        throw new UserError(`Las monedas iniciales van de 1 a ${MAX_COINS}.`);
+      if (room.game && room.game.phase !== 'FIN' && coins !== room.settings.startingCoins)
+        throw new UserError('Las monedas iniciales solo se pueden cambiar antes de empezar la partida.');
+      room.settings = { auctionTimerS: clamp(p.auctionTimerS), placementTimerS: clamp(p.placementTimerS), startingCoins: coins };
       broadcast(room);
     }));
 

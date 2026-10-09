@@ -283,3 +283,26 @@ describe('cierre automático', () => {
     luis.socket.disconnect();
   }, 12_000);
 });
+
+describe('monedas iniciales', () => {
+  it('el anfitrión elige con cuántas monedas empieza cada jugador', async () => {
+    const host = await client();
+    const { code } = await ok(host, 'room:create', { name: 'Ana', playing: true });
+    const luis = await client();
+    await ok(luis, 'room:join', { code, name: 'Luis' });
+    const base = { auctionTimerS: 0, placementTimerS: 0 };
+    expect((await luis.call('room:settings', { ...base, startingCoins: 25 })).ok).toBe(false);
+    expect((await host.call('room:settings', { ...base, startingCoins: 0 })).error).toMatch(/de 1 a/);
+    await ok(host, 'room:settings', { ...base, startingCoins: 25 });
+    await luis.waitFor((v) => v.settings.startingCoins === 25);
+    await ok(host, 'game:start');
+    const v = await luis.waitFor((x) => !!x.game);
+    expect(v.me.coins).toBe(25);
+    expect(v.members.map((m) => m.coins)).toEqual([25, 25]);
+    // con la partida en marcha no se puede cambiar
+    expect((await host.call('room:settings', { ...base, startingCoins: 50 })).ok).toBe(false);
+    await ok(host, 'room:close');
+    host.socket.disconnect();
+    luis.socket.disconnect();
+  });
+});

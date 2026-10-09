@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MAX_PLAYERS, MAX_TIMER_S, MIN_PLAYERS } from '../../../shared/config';
+import { MAX_COINS, MAX_PLAYERS, MAX_TIMER_S, MIN_PLAYERS } from '../../../shared/config';
 import type { ClientView } from '../../../shared/view';
 import { call, forgetSession, showToast } from '../store';
 
@@ -50,6 +50,7 @@ export function Lobby({ view, onRules }: { view: ClientView; onRules: () => void
         </ul>
       </section>
 
+      <p className="hint center">🪙 Cada jugador empieza con <b>{view.settings.startingCoins}</b> monedas.</p>
       {me.isHost ? (
         <HostLobbyControls view={view} canStart={canStart} />
       ) : (
@@ -73,8 +74,19 @@ export function Lobby({ view, onRules }: { view: ClientView; onRules: () => void
 function HostLobbyControls({ view, canStart }: { view: ClientView; canStart: boolean }) {
   const [auction, setAuction] = useState(String(view.settings.auctionTimerS));
   const [placement, setPlacement] = useState(String(view.settings.placementTimerS));
-  const save = () =>
-    call('room:settings', { auctionTimerS: Number(auction) || 0, placementTimerS: Number(placement) || 0 });
+  const [coins, setCoins] = useState(String(view.settings.startingCoins));
+  const save = async (startingCoins = Number(coins)) => {
+    const res = await call('room:settings', {
+      auctionTimerS: Number(auction) || 0,
+      placementTimerS: Number(placement) || 0,
+      startingCoins: Math.round(startingCoins) || 0,
+    });
+    if (!res) setCoins(String(view.settings.startingCoins)); // valor no válido: vuelve al anterior
+  };
+  const pickCoins = (n: number) => {
+    setCoins(String(n));
+    save(n);
+  };
 
   return (
     <section className="card">
@@ -87,10 +99,36 @@ function HostLobbyControls({ view, canStart }: { view: ClientView; canStart: boo
         />
         Yo también juego
       </label>
+      <label className="field">
+        <span>🪙 Monedas con las que empieza cada jugador</span>
+        <div className="coin-presets">
+          {[20, 30, 40, 50, 60, 100].map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`btn small ${view.settings.startingCoins === n ? 'primary' : 'ghost'}`}
+              onClick={() => pickCoins(n)}
+              aria-pressed={view.settings.startingCoins === n}
+            >
+              {n}
+            </button>
+          ))}
+          <input
+            type="number"
+            min={1}
+            max={MAX_COINS}
+            value={coins}
+            onChange={(e) => setCoins(e.target.value)}
+            onBlur={() => save()}
+            onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+            aria-label="Otra cantidad de monedas"
+          />
+        </div>
+      </label>
       <div className="settings-grid">
         <label className="field">
           <span>Tiempo para pujar (s)</span>
-          <input type="number" min={0} max={MAX_TIMER_S} value={auction} onChange={(e) => setAuction(e.target.value)} onBlur={save} />
+          <input type="number" min={0} max={MAX_TIMER_S} value={auction} onChange={(e) => setAuction(e.target.value)} onBlur={() => save()} />
         </label>
         <label className="field">
           <span>Tiempo para colocar (s)</span>
@@ -100,7 +138,7 @@ function HostLobbyControls({ view, canStart }: { view: ClientView; canStart: boo
             max={MAX_TIMER_S}
             value={placement}
             onChange={(e) => setPlacement(e.target.value)}
-            onBlur={save}
+            onBlur={() => save()}
           />
         </label>
       </div>

@@ -64,13 +64,13 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   );
 }
 
-export function RulesModal({ onClose }: { onClose: () => void }) {
+export function RulesModal({ onClose, startingCoins = STARTING_COINS }: { onClose: () => void; startingCoins?: number }) {
   return (
     <Modal title="Cómo se juega" onClose={onClose}>
       <div className="rules">
         <p>
           Tablero compartido de 8×8 (columnas <b>A–H</b>, filas <b>1–8</b>). Cada jugador recibe en secreto una{' '}
-          <b>combinación de 3 colores</b> y empieza con <b>{STARTING_COINS} monedas</b>. Hay <b>{TOTAL_ROUNDS} rondas</b>.
+          <b>combinación de 3 colores</b> y empieza con <b>{startingCoins} monedas</b>. Hay <b>{TOTAL_ROUNDS} rondas</b>.
         </p>
         <h3>🎯 Objetivo</h3>
         <p>
