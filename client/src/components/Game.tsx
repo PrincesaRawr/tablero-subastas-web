@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLORS, COLOR_LABEL, COLOR_SYMBOL, type Color } from '../../../shared/config';
 import { applyPlacements, findOccurrences, type AuctionId, type Cell, type Placement } from '../../../shared/engine';
 import type { ChatMessage, ClientView } from '../../../shared/view';
-import type { PeekedBid } from '../../../shared/protocol';
+import type { BidHistoryRound, PeekedBid } from '../../../shared/protocol';
 import { act, call, forgetSession, showToast } from '../store';
 import { PHASE_LABEL, describeSlots, joinNames, logText, nameResolver, resolutionVerdict, winnerLine, type NameOf } from '../text';
 import { usePlacementDraft, type PlacementDraft } from '../usePlacementDraft';
@@ -40,7 +40,7 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
     const fresh = g.log.slice(seenLog.current);
     seenLog.current = g.log.length;
     for (const e of fresh) {
-      if (((e.type === 'peek' || e.type === 'peek-chats') && e.by !== me.id) || e.type === 'coins') showToast(logText(e, nameOf), 'info');
+      if (((e.type === 'peek' || e.type === 'peek-chats' || e.type === 'peek-history') && e.by !== me.id) || e.type === 'coins') showToast(logText(e, nameOf), 'info');
     }
   }, [g.log.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -914,6 +914,7 @@ function CoinEditor({ current, onDone }: { current: number; onDone: (coins: numb
 /** Controles extra del anfitrión durante la partida. */
 function HostTools({ view }: { view: ClientView }) {
   const [chats, setChats] = useState(false);
+  const [history, setHistory] = useState(false);
   return (
     <details className="card host-tools">
       <summary>⚙️ Controles del anfitrión</summary>
@@ -936,6 +937,14 @@ function HostTools({ view }: { view: ClientView }) {
         <button
           className="btn ghost"
           onClick={() =>
+            confirm('Todos verán en el historial que has mirado las pujas de rondas anteriores. ¿Mirar?') && setHistory(true)
+          }
+        >
+          📜 Ver pujas de rondas anteriores
+        </button>
+        <button
+          className="btn ghost"
+          onClick={() =>
             confirm('¿Terminar la partida ahora? Se contarán las apariciones con el tablero tal y como está.') &&
             act({ type: 'endNow' })
           }
@@ -950,7 +959,59 @@ function HostTools({ view }: { view: ClientView }) {
         </button>
       </div>
       {chats && <AllChatsModal view={view} onClose={() => setChats(false)} />}
+      {history && <BidHistoryModal view={view} onClose={() => setHistory(false)} />}
     </details>
+  );
+}
+
+/** El anfitrión revisa lo que pujó cada persona en las rondas ya cerradas (queda en el historial). */
+function BidHistoryModal({ view, onClose }: { view: ClientView; onClose: () => void }) {
+  const [data, setData] = useState<{ history: BidHistoryRound[]; playerIds: string[] } | null>(null);
+  useEffect(() => {
+    act({ type: 'peekHistory' }).then((res) => {
+      if (res?.history) setData({ history: res.history, playerIds: res.playerIds ?? [] });
+      else onClose();
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const nameOf = (id: string) => view.members.find((m) => m.id === id)?.name ?? 'Alguien';
+  const cell = (bid: { A: number; B: number } | undefined) =>
+    !bid ? <span className="muted">sin enviar</span> : bid.A === 0 && bid.B === 0 ? <span className="muted">no pujó</span> : (
+      <>
+        <span className="hist-bid">A {bid.A || '—'}</span> <span className="hist-bid">B {bid.B || '—'}</span>
+      </>
+    );
+
+  return (
+    <Modal title="Pujas de rondas anteriores" onClose={onClose}>
+      {!data ? (
+        <p className="muted">Cargando…</p>
+      ) : data.history.length === 0 ? (
+        <p className="muted">Todavía no se ha cerrado ninguna subasta.</p>
+      ) : (
+        <div className="hist-wrap">
+          <table className="peek-table hist-table">
+            <thead>
+              <tr>
+                <th>Ronda</th>
+                {data.playerIds.map((p) => (
+                  <th key={p}>{nameOf(p)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[...data.history].reverse().map((h) => (
+                <tr key={h.round}>
+                  <td>R{h.round}</td>
+                  {data.playerIds.map((p) => (
+                    <td key={p}>{cell(h.bids[p])}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Modal>
   );
 }
 

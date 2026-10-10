@@ -1374,3 +1374,30 @@ input::placeholder {
   text-align: right;
   margin-left: auto;
 }
+
+.hist-wrap {
+  overflow-x: auto;
+  max-height: 60vh;
+}
+.hist-table th,
+.hist-table td {
+  white-space: nowrap;
+  color: var(--text) !important;
+  font-weight: 400 !important;
+}
+.hist-table td:first-child {
+  color: var(--gold) !important;
+  font-weight: 700 !important;
+}
+.hist-bid {
+  display: inline-block;
+  padding: 0 0.3rem;
+  border-radius: 6px;
+  background: #ffd45e1c;
+  color: var(--gold);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.history .log-peek-history {
+  color: var(--gold);
+}

@@ -13,6 +13,12 @@ export interface PeekedBid {
   bid: Bid | null;
 }
 
+export interface BidHistoryRound {
+  round: number;
+  /** Quien no aparece no envió nada esa ronda. */
+  bids: Record<string, Bid>;
+}
+
 export type Ack<T = object> = (res: ({ ok: true } & T) | { ok: false; error: string }) => void;
 
 /** Acciones de partida que un cliente puede enviar (negExpire es solo del servidor). */
@@ -32,7 +38,7 @@ export interface ClientToServer {
   /** to = null → chat general; si no, id de la persona destinataria (privado). */
   'chat:send': (p: { to: string | null; text: string }, ack: Ack) => void;
   /** Para `peek`, la respuesta incluye las pujas actuales (solo al anfitrión). */
-  'game:action': (p: ClientGameAction, ack: Ack<{ bids?: PeekedBid[]; chats?: ChatMessage[] }>) => void;
+  'game:action': (p: ClientGameAction, ack: Ack<{ bids?: PeekedBid[]; chats?: ChatMessage[]; history?: BidHistoryRound[]; playerIds?: string[] }>) => void;
 }
 
 export interface ServerToClient {

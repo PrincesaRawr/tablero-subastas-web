@@ -179,6 +179,15 @@ describe('partida completa con 3 clientes Socket.IO', () => {
           });
           await settle(clients, (v) => v.game!.log.some((e) => e.type === 'peek' && e.by === ids.Ana));
         }
+        if (round === 2) {
+          // Pujas de rondas anteriores: solo el anfitrión, en la respuesta, y queda en el historial
+          expect((await luis.call('game:action', { type: 'peekHistory' })).ok).toBe(false);
+          const hist = await ok(host, 'game:action', { type: 'peekHistory' });
+          expect(hist.history).toEqual([
+            { round: 1, bids: { [ids.Ana]: { A: 1, B: 0 }, [ids.Luis]: { A: 0, B: 2 }, [ids.Eva]: { A: 0, B: 1 } } },
+          ]);
+          await settle(clients, (v) => v.game!.log.some((e) => e.type === 'peek-history'));
+        }
         // Luis intenta cerrar: no es anfitrión
         expect((await luis.call('game:action', { type: 'close' })).ok).toBe(false);
         await ok(host, 'game:action', { type: 'close' });

@@ -79,6 +79,8 @@ export function logText(e: LogEntry, nameOf: NameOf): string {
       return `Ronda nula: ${joinNames(e.playerIds.map(nameOf))} ${e.reason === 'tiempo' ? 'agotaron el tiempo' : 'no llegaron a un acuerdo'}. Pierden su puja.`;
     case 'peek':
       return `👀 ${nameOf(e.by)} ha mirado las pujas.`;
+    case 'peek-history':
+      return `📜 ${nameOf(e.by)} ha mirado las pujas de rondas anteriores.`;
     case 'peek-chats':
       return `👁 ${nameOf(e.by)} ha mirado todos los chats.`;
     case 'coins': {

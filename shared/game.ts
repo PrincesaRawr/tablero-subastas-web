@@ -89,6 +89,8 @@ export type LogEntry =
   | { type: 'peek'; round: number; by: string }
   /** El anfitrión miró todos los chats, también los privados (se avisa a todos). */
   | { type: 'peek-chats'; round: number; by: string }
+  /** El anfitrión miró las pujas de las rondas anteriores (se avisa a todos). */
+  | { type: 'peek-history'; round: number; by: string }
   /** El anfitrión cambió las monedas de un jugador. */
   | { type: 'coins'; round: number; playerId: string; from: number; to: number }
   /** El anfitrión terminó la partida antes de tiempo. */
@@ -114,6 +116,11 @@ export interface GameState {
   results: FinalResults | null;
   /** Lo que queda en el saco de cada subasta. */
   bags: { A: Bag; B: Bag };
+  /**
+   * Pujas de cada ronda ya cerrada. SOLO servidor: nunca entra en la vista de los jugadores;
+   * el anfitrión la consulta con `peekHistory` (queda en el historial).
+   */
+  bidHistory: { round: number; bids: Record<string, Bid> }[];
 }
 
 export interface GameSettings {
@@ -136,6 +143,7 @@ export type GameAction =
   | { type: 'next' }
   | { type: 'peek' }
   | { type: 'peekChats' }
+  | { type: 'peekHistory' }
   | { type: 'setCoins'; playerId: string; coins: number }
   | { type: 'endNow' }
   | { type: 'negPick'; auction: AuctionId; indices: number[] }
@@ -173,6 +181,7 @@ export function createGame(playerIds: string[], rng: Rng, startingCoins: number 
     log: [],
     results: null,
     bags: { A: fullBag(BAG_PER_COLOR), B: fullBag(BAG_PER_COLOR) },
+    bidHistory: [],
   };
 }
 
@@ -235,6 +244,13 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       return ok();
     }
 
+    case 'peekHistory': {
+      if (!ctx.isHost || !ctx.actorId) return fail('Solo el anfitrión puede mirar las pujas anteriores.');
+      if (s.phase === 'FIN') return fail('La partida ya ha terminado.');
+      s.log.push({ type: 'peek-history', round: s.round, by: ctx.actorId });
+      return ok();
+    }
+
     case 'peekChats': {
       if (!ctx.isHost || !ctx.actorId) return fail('Solo el anfitrión puede mirar los chats.');
       if (s.phase === 'FIN') return fail('La partida ya ha terminado.');
@@ -279,6 +295,7 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       if (!canControl) return fail('Solo el anfitrión puede cerrar la subasta.');
       if (s.phase !== 'PUJAS_ABIERTAS' || !s.auction) return fail('La subasta no está abierta.');
       const res = resolveAuctions(s.bids);
+      s.bidHistory.push({ round: s.round, bids: structuredClone(s.bids) });
       const coins = applyCoinLoss(Object.fromEntries(s.players.map((p) => [p.id, p.coins])), res.coinsLost);
       for (const p of s.players) p.coins = coins[p.id];
       s.resolution = res;
