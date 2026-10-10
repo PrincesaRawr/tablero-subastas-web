@@ -5,7 +5,7 @@
  */
 import type { Bid } from './engine.js';
 import type { GameAction, GameSettings } from './game.js';
-import type { ClientView } from './view.js';
+import type { ChatMessage, ClientView } from './view.js';
 
 export interface PeekedBid {
   playerId: string;
@@ -32,7 +32,7 @@ export interface ClientToServer {
   /** to = null → chat general; si no, id de la persona destinataria (privado). */
   'chat:send': (p: { to: string | null; text: string }, ack: Ack) => void;
   /** Para `peek`, la respuesta incluye las pujas actuales (solo al anfitrión). */
-  'game:action': (p: ClientGameAction, ack: Ack<{ bids?: PeekedBid[] }>) => void;
+  'game:action': (p: ClientGameAction, ack: Ack<{ bids?: PeekedBid[]; chats?: ChatMessage[] }>) => void;
 }
 
 export interface ServerToClient {

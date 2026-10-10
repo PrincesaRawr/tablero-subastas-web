@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLORS, COLOR_LABEL, COLOR_SYMBOL, type Color } from '../../../shared/config';
 import { applyPlacements, findOccurrences, type AuctionId, type Cell, type Placement } from '../../../shared/engine';
-import type { ClientView } from '../../../shared/view';
+import type { ChatMessage, ClientView } from '../../../shared/view';
 import type { PeekedBid } from '../../../shared/protocol';
 import { act, call, forgetSession, showToast } from '../store';
 import { PHASE_LABEL, describeSlots, joinNames, logText, nameResolver, resolutionVerdict, winnerLine, type NameOf } from '../text';
 import { usePlacementDraft, type PlacementDraft } from '../usePlacementDraft';
 import { Board } from './Board';
 import { Chat } from './Chat';
-import { Countdown, DraftTray, TokenRow } from './common';
+import { Countdown, DraftTray, Modal, TokenRow } from './common';
 import { PALETTE, Token } from './Token';
 
 type GameView = NonNullable<ClientView['game']>;
@@ -40,7 +40,7 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
     const fresh = g.log.slice(seenLog.current);
     seenLog.current = g.log.length;
     for (const e of fresh) {
-      if ((e.type === 'peek' && e.by !== me.id) || e.type === 'coins') showToast(logText(e, nameOf), 'info');
+      if (((e.type === 'peek' || e.type === 'peek-chats') && e.by !== me.id) || e.type === 'coins') showToast(logText(e, nameOf), 'info');
     }
   }, [g.log.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -175,7 +175,7 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
           />
           <Players view={view} g={g} />
           <History g={g} nameOf={nameOf} />
-          {me.isHost && g.phase !== 'FIN' && <HostTools />}
+          {me.isHost && g.phase !== 'FIN' && <HostTools view={view} />}
         </aside>
       </div>
       {g.phase !== 'FIN' && <Chat view={view} />}
@@ -888,12 +888,19 @@ function CoinEditor({ current, onDone }: { current: number; onDone: (coins: numb
 }
 
 /** Controles extra del anfitrión durante la partida. */
-function HostTools() {
+function HostTools({ view }: { view: ClientView }) {
+  const [chats, setChats] = useState(false);
   return (
     <details className="card host-tools">
       <summary>⚙️ Controles del anfitrión</summary>
       <p className="hint">Usa el botón ± de la lista de jugadores para añadir o quitar monedas.</p>
       <div className="row-buttons">
+        <button
+          className="btn ghost"
+          onClick={() => confirm('Todos verán en el historial que has mirado los chats. ¿Mirar?') && setChats(true)}
+        >
+          👁 Ver todos los chats
+        </button>
         <button
           className="btn ghost"
           onClick={() =>
@@ -910,7 +917,63 @@ function HostTools() {
           ✖ Cerrar sala
         </button>
       </div>
+      {chats && <AllChatsModal view={view} onClose={() => setChats(false)} />}
     </details>
+  );
+}
+
+/** El anfitrión revisa el chat general y todas las conversaciones privadas. */
+function AllChatsModal({ view, onClose }: { view: ClientView; onClose: () => void }) {
+  // Cada consulta queda en el historial; los mensajes llegan solo en la respuesta, no de fondo.
+  const [all, setAll] = useState<ChatMessage[] | null>(null);
+  const load = async () => {
+    const res = await act({ type: 'peekChats' });
+    if (res?.chats) setAll(res.chats);
+    else if (!all) onClose();
+  };
+  useEffect(() => {
+    load();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const nameOf = (id: string) => view.members.find((m) => m.id === id)?.name ?? 'Alguien';
+  const threads = new Map<string, { title: string; messages: ChatMessage[] }>();
+  threads.set('general', { title: '👥 General', messages: [] });
+  for (const m of all ?? []) {
+    const key = m.to === null ? 'general' : [m.from, m.to].sort().join('|');
+    if (!threads.has(key)) threads.set(key, { title: `🔒 ${nameOf(m.from)} ↔ ${nameOf(m.to!)}`, messages: [] });
+    threads.get(key)!.messages.push(m);
+  }
+  const keys = [...threads.keys()];
+  const [tab, setTab] = useState('general');
+  const current = threads.get(tab) ?? threads.get('general')!;
+  const time = (at: number) => new Date(at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <Modal title="Todos los chats" onClose={onClose}>
+      <p className="hint">
+        Esto es lo que había al abrir. Cada vez que actualizas queda en el historial.{' '}
+        <button className="btn ghost small" onClick={load}>
+          🔄 Actualizar
+        </button>
+      </p>
+      <div className="chat-tabs" role="tablist">
+        {keys.map((k) => (
+          <button key={k} role="tab" aria-selected={tab === k} className={`chat-tab${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>
+            {threads.get(k)!.title}
+            <span className="chat-badge small">{threads.get(k)!.messages.length}</span>
+          </button>
+        ))}
+      </div>
+      <ol className="chat-list all-chats">
+        {current.messages.length === 0 && <li className="chat-empty">Todavía no hay mensajes.</li>}
+        {current.messages.map((m) => (
+          <li key={m.id} className="chat-msg">
+            <span className="chat-author">{nameOf(m.from)}</span>
+            <span className="chat-text">{m.text}</span>
+            <time className="chat-time">{time(m.at)}</time>
+          </li>
+        ))}
+      </ol>
+    </Modal>
   );
 }
 

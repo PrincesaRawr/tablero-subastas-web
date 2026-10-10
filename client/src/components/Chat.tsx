@@ -99,7 +99,7 @@ export function Chat({ view }: { view: ClientView }) {
           <p className="chat-hint">
             {tab === GENERAL
               ? 'Lo ven todos los de la sala.'
-              : `Privado: solo lo veis ${nameOf(tab)} y tú.`}{' '}
+              : `Privado: solo lo veis ${nameOf(tab)} y tú (el anfitrión puede revisar los chats).`}{' '}
             Se borra al terminar la partida.
           </p>
           <ol className="chat-list" ref={listRef} aria-live="polite">

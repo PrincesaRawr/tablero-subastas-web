@@ -1327,3 +1327,12 @@ input::placeholder {
   color: #fff;
   border: 1px solid #fff8;
 }
+
+.chat-list.all-chats {
+  max-height: 55vh;
+  min-height: 200px;
+  margin-top: 0.5rem;
+}
+.history .log-peek-chats {
+  color: var(--gold);
+}

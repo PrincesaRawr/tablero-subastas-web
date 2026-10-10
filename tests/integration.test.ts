@@ -336,6 +336,14 @@ describe('chat de la partida', () => {
     // Ana nunca ha recibido el privado en ningún mensaje
     for (const v of host.views) expect(JSON.stringify(v)).not.toContain('secreto para Eva');
 
+    // El anfitrión puede mirar todos los chats, pero queda en el historial de todos
+    expect((await luis.call('game:action', { type: 'peekChats' })).error).toBe('Solo el anfitrión puede mirar los chats.');
+    const peek = await ok(host, 'game:action', { type: 'peekChats' });
+    expect(peek.chats.map((m: any) => m.text)).toEqual(['¡Hola a todos!', 'secreto para Eva']);
+    await settle(all, (v) => v.game!.log.some((e) => e.type === 'peek-chats' && e.by === id.Ana));
+    // y aun así el privado nunca le llega de fondo en la vista
+    for (const v of host.views) expect(JSON.stringify(v)).not.toContain('secreto para Eva');
+
     await ok(host, 'game:action', { type: 'endNow' });
     await settle(all, (v) => v.game?.phase === 'FIN');
     for (const c of all) expect(c.view().chat).toEqual([]);

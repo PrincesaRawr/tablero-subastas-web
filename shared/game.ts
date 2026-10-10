@@ -87,6 +87,8 @@ export type LogEntry =
   | { type: 'null-round'; round: number; playerIds: string[]; reason: 'sin-acuerdo' | 'tiempo' }
   /** El anfitrión miró las pujas de la subasta abierta (se avisa a todos). */
   | { type: 'peek'; round: number; by: string }
+  /** El anfitrión miró todos los chats, también los privados (se avisa a todos). */
+  | { type: 'peek-chats'; round: number; by: string }
   /** El anfitrión cambió las monedas de un jugador. */
   | { type: 'coins'; round: number; playerId: string; from: number; to: number }
   /** El anfitrión terminó la partida antes de tiempo. */
@@ -131,6 +133,7 @@ export type GameAction =
   | { type: 'forceRandom' }
   | { type: 'next' }
   | { type: 'peek' }
+  | { type: 'peekChats' }
   | { type: 'setCoins'; playerId: string; coins: number }
   | { type: 'endNow' }
   | { type: 'negPick'; auction: AuctionId; indices: number[] }
@@ -227,6 +230,13 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       if (!ctx.isHost || !ctx.actorId) return fail('Solo el anfitrión puede mirar las pujas.');
       if (s.phase !== 'PUJAS_ABIERTAS') return fail('Solo se pueden mirar las pujas con la subasta abierta.');
       s.log.push({ type: 'peek', round: s.round, by: ctx.actorId });
+      return ok();
+    }
+
+    case 'peekChats': {
+      if (!ctx.isHost || !ctx.actorId) return fail('Solo el anfitrión puede mirar los chats.');
+      if (s.phase === 'FIN') return fail('La partida ya ha terminado.');
+      s.log.push({ type: 'peek-chats', round: s.round, by: ctx.actorId });
       return ok();
     }
 

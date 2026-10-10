@@ -68,7 +68,7 @@ export interface RunningServer {
 const CLIENT_ACTIONS = new Set<GameAction['type']>([
   'deal', 'open', 'bid', 'close', 'choose', 'place', 'forceRandom', 'next',
   'negPick', 'negSet', 'negAgree', 'negNoDeal',
-  'peek', 'setCoins', 'endNow',
+  'peek', 'peekChats', 'setCoins', 'endNow',
 ]);
 
 class UserError extends Error {}
@@ -374,6 +374,7 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
       syncTimer(room);
       broadcast(room);
       // Las pujas solo viajan en la respuesta al anfitrión que las ha pedido, nunca en la vista común.
+      if (action.type === 'peekChats') return { chats: room.chat };
       if (action.type === 'peek') {
         const g = room.game;
         return { bids: g.players.map((p) => ({ playerId: p.id, bid: g.bids[p.id] ?? null })) };
