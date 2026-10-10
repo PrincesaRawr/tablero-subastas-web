@@ -685,12 +685,15 @@ function SlotPicker(props: {
 }) {
   const { n, slotIndex, auction, pick, nameOf, round } = props;
   const current = n.picks![slotIndex];
-  const [sel, setSel] = useState<number[]>(current ?? []);
+  const [rawSel, setSel] = useState<number[]>(current ?? []);
   useEffect(() => setSel(current ?? []), [round, current?.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const takenBy = new Map<number, string>();
   n.slots.forEach((sl, j) => {
     if (j !== slotIndex && sl.auction === auction) for (const i of n.picks![j] ?? []) takenBy.set(i, sl.playerId);
   });
+  // Si otra persona se lleva una ficha que tenía marcada (p. ej. al elegir los dos a la vez),
+  // se desmarca sola: su botón está desactivado y si no, no habría forma de quitarla.
+  const sel = rawSel.filter((i) => !takenBy.has(i));
   if (pick === 0) return <p className="hint">Sois demasiados empatados en la {auction}: esta vez no te toca ficha.</p>;
   return (
     <div className="slot-picker">
