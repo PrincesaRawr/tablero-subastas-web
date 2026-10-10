@@ -1346,3 +1346,7 @@ input::placeholder {
   color: var(--gold);
   font-weight: 600;
 }
+
+.bags-toggle {
+  justify-self: start;
+}

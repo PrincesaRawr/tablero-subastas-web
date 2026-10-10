@@ -87,8 +87,8 @@ export function RulesModal({ onClose, startingCoins = STARTING_COINS }: { onClos
             Cada saco empieza con <b>{BAG_PER_COLOR} fichas de cada color</b> ({BAG_PER_COLOR * COLORS.length} en total).
           </li>
           <li>
-            Las fichas que salen <b>no vuelven al saco</b>, aunque se descarten. Debajo de cada subasta ves cuántas quedan de
-            cada color.
+            Las fichas que salen <b>no vuelven al saco</b>, aunque se descarten. Con el botón «🎒 Ver sacos» puedes ver
+            cuántas quedan de cada color.
           </li>
         </ul>
         <h3>🔨 Cada ronda</h3>

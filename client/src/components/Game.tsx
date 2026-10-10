@@ -293,17 +293,26 @@ function AutoStepNotice({ step, isLast }: { step: NonNullable<GameView['autoStep
 }
 
 function Auctions({ g }: { g: GameView }) {
+  // Lo que queda en los sacos solo se muestra al pulsar el botón (cada jugador en su pantalla).
+  const [showBags, setShowBags] = useState(() => readPref('ts:bags-visible', false));
+  const toggleBags = () => {
+    writePref('ts:bags-visible', !showBags);
+    setShowBags(!showBags);
+  };
   return (
     <div className="auctions">
       {(['A', 'B'] as const).map((id) => (
         <div className="auction" key={id}>
           <div className="auction-head">
             <div className="auction-name">Subasta {id}</div>
-            <BagCounts bag={g.bags[id]} label={`Quedan en el saco ${id}`} />
+            {showBags && <BagCounts bag={g.bags[id]} label={`Quedan en el saco ${id}`} />}
           </div>
           {g.auction && <TokenRow tokens={g.auction[id]} size={38} label={`Fichas de la subasta ${id}`} />}
         </div>
       ))}
+      <button className="btn ghost small bags-toggle" onClick={toggleBags} aria-pressed={showBags}>
+        🎒 {showBags ? 'Ocultar sacos' : 'Ver sacos'}
+      </button>
     </div>
   );
 }
