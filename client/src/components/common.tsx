@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { STARTING_COINS, TOTAL_ROUNDS, NEGOTIATION_TIME_LIMIT_S, type Color } from '../../../shared/config';
+import { BAG_PER_COLOR, STARTING_COINS, TOTAL_ROUNDS, NEGOTIATION_TIME_LIMIT_S, type Color } from '../../../shared/config';
 import { serverNow } from '../store';
 import type { PlacementDraft } from '../usePlacementDraft';
 import { Token } from './Token';
@@ -81,7 +81,7 @@ export function RulesModal({ onClose, startingCoins = STARTING_COINS }: { onClos
         <ol>
           <li>
             Hay dos subastas, <b>A</b> y <b>B</b>, con 5 fichas cada una. Cada subasta saca sus fichas de su propio saco,
-            que empieza con 10 de cada color; las fichas que salen ya no vuelven.
+            que empieza con {BAG_PER_COLOR} de cada color; las fichas que salen ya no vuelven.
           </li>
           <li>Pujas en secreto en A, en B, en las dos o en ninguna. Puedes cambiar tu puja mientras esté abierta.</li>
           <li>Gana cada subasta quien más pujó.</li>

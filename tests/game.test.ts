@@ -254,24 +254,28 @@ describe('empates de varias personas', () => {
 });
 
 describe('sacos de fichas', () => {
-  it('cada subasta saca de su saco (10 de cada color) y en 10 rondas salen exactamente todas', () => {
+  it('cada subasta saca de su saco (15 de cada color), sin devolver, y nunca salen más de 15 de un color', () => {
     let s = createGame(['ana', 'luis'], seeded(21));
-    expect(s.bags.A).toEqual({ rosa: 10, azul: 10, naranja: 10, verde: 10, morado: 10 });
+    expect(s.bags.A).toEqual({ rosa: 15, azul: 15, naranja: 15, verde: 15, morado: 15 });
     const dealt = { A: [] as string[], B: [] as string[] };
     for (let r = 1; r <= TOTAL_ROUNDS; r++) {
       s = run(s, { type: 'deal' }, 'host', true);
       dealt.A.push(...s.auction!.A);
       dealt.B.push(...s.auction!.B);
       const left = (Object.values(s.bags.A) as number[]).reduce((a, b) => a + b, 0);
-      expect(left).toBe(50 - 5 * r);
+      expect(left).toBe(75 - 5 * r);
       s = run(s, { type: 'open' }, 'host', true);
       s = run(s, { type: 'close' }, 'host', true); // nadie puja: las fichas se descartan y no vuelven
       s = run(s, { type: 'next' }, 'host', true);
     }
     for (const id of ['A', 'B'] as const) {
       const count = (c: string) => dealt[id].filter((x) => x === c).length;
-      expect(['rosa', 'azul', 'naranja', 'verde', 'morado'].map(count)).toEqual([10, 10, 10, 10, 10]);
-      expect(Object.values(s.bags[id])).toEqual([0, 0, 0, 0, 0]);
+      const colors = ['rosa', 'azul', 'naranja', 'verde', 'morado'] as const;
+      for (const c of colors) {
+        expect(count(c)).toBeLessThanOrEqual(15);
+        expect(count(c) + s.bags[id][c]).toBe(15); // lo que salió + lo que queda = 15
+      }
+      expect(dealt[id]).toHaveLength(50);
     }
   });
 });
