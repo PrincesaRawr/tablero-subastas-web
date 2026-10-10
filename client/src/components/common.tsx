@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { BAG_PER_COLOR, STARTING_COINS, TOTAL_ROUNDS, NEGOTIATION_TIME_LIMIT_S, type Color } from '../../../shared/config';
+import { BAG_PER_COLOR, COLORS, STARTING_COINS, TOTAL_ROUNDS, NEGOTIATION_TIME_LIMIT_S, type Color } from '../../../shared/config';
 import { serverNow } from '../store';
 import type { PlacementDraft } from '../usePlacementDraft';
 import { Token } from './Token';
@@ -70,18 +70,31 @@ export function RulesModal({ onClose, startingCoins = STARTING_COINS }: { onClos
       <div className="rules">
         <p>
           Tablero compartido de 8×8 (columnas <b>A–H</b>, filas <b>1–8</b>). Cada jugador recibe en secreto una{' '}
-          <b>combinación de 3 colores</b> y empieza con <b>{startingCoins} monedas</b>. Hay <b>{TOTAL_ROUNDS} rondas</b>.
+          <b>combinación de 3 colores</b> y empieza con <b>{startingCoins} monedas</b>. Hay <b>{TOTAL_ROUNDS} rondas</b> y{' '}
+          <b>dos sacos de fichas</b>, uno para cada subasta, con <b>{BAG_PER_COLOR} fichas de cada color</b>.
         </p>
         <h3>🎯 Objetivo</h3>
         <p>
           Que tu combinación aparezca el mayor número de veces al final: en horizontal, vertical o diagonal, y se puede leer
           al revés, pero siempre respetando el orden.
         </p>
+        <h3>🎒 Sacos de fichas</h3>
+        <ul>
+          <li>
+            Hay <b>dos sacos</b>: el de la subasta A y el de la subasta B.
+          </li>
+          <li>
+            Cada saco empieza con <b>{BAG_PER_COLOR} fichas de cada color</b> ({BAG_PER_COLOR * COLORS.length} en total).
+          </li>
+          <li>
+            Las fichas que salen <b>no vuelven al saco</b>, aunque se descarten. Debajo de cada subasta ves cuántas quedan de
+            cada color.
+          </li>
+        </ul>
         <h3>🔨 Cada ronda</h3>
         <ol>
           <li>
-            Hay dos subastas, <b>A</b> y <b>B</b>, con 5 fichas cada una. Cada subasta saca sus fichas de su propio saco,
-            que empieza con {BAG_PER_COLOR} de cada color; las fichas que salen ya no vuelven.
+            Hay dos subastas, <b>A</b> y <b>B</b>: se sacan 5 fichas del saco A y 5 del saco B.
           </li>
           <li>Pujas en secreto en A, en B, en las dos o en ninguna. Puedes cambiar tu puja mientras esté abierta.</li>
           <li>Gana cada subasta quien más pujó.</li>
