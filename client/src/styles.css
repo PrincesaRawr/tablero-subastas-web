@@ -1350,3 +1350,27 @@ input::placeholder {
 .bags-toggle {
   justify-self: start;
 }
+
+.settings-summary dl {
+  margin: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  background: #ffffff0a;
+  flex-wrap: wrap;
+}
+.summary-row dt {
+  color: var(--muted);
+}
+.summary-row dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  margin-left: auto;
+}

@@ -1,5 +1,17 @@
 import { useState } from 'react';
-import { MAX_COINS, MAX_PLAYERS, MAX_TIMER_S, MIN_PLAYERS } from '../../../shared/config';
+import {
+  AUTO_CLOSE_AFTER_ALL_BIDS_S,
+  AUTO_DEAL_DELAY_S,
+  AUTO_NEXT_DELAY_S,
+  AUTO_OPEN_DELAY_S,
+  BAG_PER_COLOR,
+  MAX_COINS,
+  MAX_PLAYERS,
+  MAX_TIMER_S,
+  MIN_PLAYERS,
+  NEGOTIATION_TIME_LIMIT_S,
+  TOTAL_ROUNDS,
+} from '../../../shared/config';
 import type { ClientView } from '../../../shared/view';
 import { call, forgetSession, showToast } from '../store';
 
@@ -50,7 +62,7 @@ export function Lobby({ view, onRules }: { view: ClientView; onRules: () => void
         </ul>
       </section>
 
-      <p className="hint center">🪙 Cada jugador empieza con <b>{view.settings.startingCoins}</b> monedas.</p>
+      <GameSettingsSummary view={view} />
       {me.isHost ? (
         <HostLobbyControls view={view} canStart={canStart} />
       ) : (
@@ -164,6 +176,44 @@ function HostLobbyControls({ view, canStart }: { view: ClientView; canStart: boo
         </button>
       </div>
       {!canStart && <p className="hint">Hacen falta al menos {MIN_PLAYERS} jugadores.</p>}
+    </section>
+  );
+}
+
+/** Resumen de la configuración, visible para todos los que esperan en la sala. */
+function GameSettingsSummary({ view }: { view: ClientView }) {
+  const st = view.settings;
+  const secs = (n: number) => (n > 0 ? (n >= 60 && n % 60 === 0 ? `${n / 60} min` : `${n} s`) : 'sin límite');
+  const rows: [string, string, string][] = [
+    ['🪙', 'Monedas iniciales', String(st.startingCoins)],
+    ['🔁', 'Rondas', String(TOTAL_ROUNDS)],
+    ['🎒', 'Sacos', `${BAG_PER_COLOR} fichas de cada color por saco`],
+    ['🔨', 'Tiempo para pujar', secs(st.auctionTimerS)],
+    ['🔔', 'Cierre de la subasta', `sola a los ${AUTO_CLOSE_AFTER_ALL_BIDS_S} s de que pujen todos`],
+    ['🧩', 'Tiempo para colocar', st.placementTimerS > 0 ? `${secs(st.placementTimerS)} (después, al azar)` : 'sin límite'],
+    ['🤝', 'Tiempo para negociar', secs(NEGOTIATION_TIME_LIMIT_S)],
+    [
+      '⏩',
+      'Modo automático',
+      st.autoAdvance
+        ? `sí (fichas: ${AUTO_DEAL_DELAY_S} s · subasta: ${AUTO_OPEN_DELAY_S} s · siguiente ronda: ${AUTO_NEXT_DELAY_S} s)`
+        : 'no (el anfitrión avanza a mano)',
+    ],
+  ];
+  return (
+    <section className="card settings-summary" aria-label="Configuración de la partida">
+      <h2>⚙️ Cómo está configurada la partida</h2>
+      <dl>
+        {rows.map(([icon, label, value]) => (
+          <div className="summary-row" key={label}>
+            <dt>
+              <span aria-hidden="true">{icon}</span> {label}
+            </dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {!view.me.isHost && <p className="hint">Lo elige el anfitrión; si lo cambia, se actualiza aquí al momento.</p>}
     </section>
   );
 }
