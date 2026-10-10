@@ -216,8 +216,11 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       if (s.phase !== 'FICHAS' || !s.auction) return fail('Primero hay que repartir las fichas.');
       s.phase = 'PUJAS_ABIERTAS';
       s.bids = {};
+      // Quien no tiene monedas cuenta como "listo" (no puja) sin tener que pulsar nada.
+      for (const p of s.players) if (p.coins <= 0) s.bids[p.id] = { A: 0, B: 0 };
       s.auctionDeadline = ctx.settings.auctionTimerS > 0 ? ctx.now + ctx.settings.auctionTimerS * 1000 : null;
       s.autoCloseAt = null;
+      scheduleAutoClose(s, ctx);
       return ok();
     }
 
@@ -231,9 +234,7 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       if (err) return fail(err);
       // 0 y 0 = "no pujo esta ronda": cuenta como enviada, pero no participa en ninguna subasta
       s.bids[player.id] = clean;
-      // Si ya han enviado todos, empieza (o vuelve a empezar) la cuenta atrás para cerrar sola.
-      const everyone = s.players.every((p) => s.bids[p.id]);
-      s.autoCloseAt = everyone && AUTO_CLOSE_AFTER_ALL_BIDS_S > 0 ? ctx.now + AUTO_CLOSE_AFTER_ALL_BIDS_S * 1000 : null;
+      scheduleAutoClose(s, ctx);
       return ok();
     }
 
@@ -468,6 +469,12 @@ function validatePartial(board: Board, tokens: Color[], placements: Placement[],
     used.add(key);
   }
   return null;
+}
+
+/** Si ya han enviado todos, empieza (o vuelve a empezar) la cuenta atrás para cerrar la subasta sola. */
+function scheduleAutoClose(s: GameState, ctx: ActionContext) {
+  const everyone = s.players.every((p) => s.bids[p.id]);
+  s.autoCloseAt = everyone && AUTO_CLOSE_AFTER_ALL_BIDS_S > 0 ? ctx.now + AUTO_CLOSE_AFTER_ALL_BIDS_S * 1000 : null;
 }
 
 function cleanPlacements(placements: Placement[]): Placement[] {

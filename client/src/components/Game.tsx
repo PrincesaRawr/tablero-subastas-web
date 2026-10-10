@@ -831,7 +831,7 @@ function Players({ view, g }: { view: ClientView; g: GameView }) {
                 {m.id === view.me.id && <span className="muted"> (tú)</span>}
               </span>
               {g.phase === 'PUJAS_ABIERTAS' && m.inGame && (
-                <span className={`bid-flag${m.hasBid ? ' yes' : ''}`}>{m.hasBid ? '✓ ha enviado' : '…'}</span>
+                <span className={`bid-flag${m.hasBid ? ' yes' : ''}`}>{m.hasBid ? (m.coins === 0 ? '✓ sin monedas' : '✓ ha enviado') : '…'}</span>
               )}
               {final && <span className="badge">{final.count} ✦</span>}
               {m.inGame ? (

@@ -68,6 +68,16 @@ describe('herramientas del anfitrión', () => {
 });
 
 describe('cierre automático de la subasta', () => {
+  it('quien tiene 0 monedas cuenta como listo desde que se abre la subasta', () => {
+    let s = createGame(['ana', 'luis'], seeded(1));
+    s = run(s, { type: 'setCoins', playerId: 'luis', coins: 0 }, 'host', true);
+    s = open(s);
+    expect(s.bids.luis).toEqual({ A: 0, B: 0 });
+    expect(s.autoCloseAt).toBeNull(); // falta Ana
+    const r = gameReducer(s, { type: 'bid', bid: { A: 2, B: 0 } }, { actorId: 'ana', isHost: false, rng: seeded(1), now: 1000, settings });
+    expect(r.ok && r.state.autoCloseAt).toBe(6000);
+  });
+
   it('cuando todos han enviado, programa el cierre a los 5 s; un cambio lo reinicia', () => {
     const at = (s: GameState, action: GameAction, actorId: string, now: number) => {
       const r = gameReducer(s, action, { actorId, isHost: false, rng: seeded(1), now, settings });
