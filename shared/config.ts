@@ -70,5 +70,11 @@ export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 export const MAX_NAME_LENGTH = 20;
 
+/** Chat de la partida (general y privado). Se borra al terminar la partida. */
+export const CHAT_MAX_LENGTH = 300;
+export const CHAT_MAX_MESSAGES = 500;
+/** Tiempo mínimo entre dos mensajes de la misma persona (antispam). */
+export const CHAT_MIN_INTERVAL_MS = 400;
+
 /** Salas sin nadie conectado se borran pasado este tiempo. */
 export const EMPTY_ROOM_TTL_MS = 30 * 60 * 1000;

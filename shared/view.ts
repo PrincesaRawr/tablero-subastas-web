@@ -15,12 +15,22 @@ export interface MemberInfo {
   isPlaying: boolean;
 }
 
+/** Mensaje de chat. `to` = null → chat general; si no, mensaje privado a esa persona. */
+export interface ChatMessage {
+  id: number;
+  from: string;
+  to: string | null;
+  text: string;
+  at: number;
+}
+
 export interface RoomSnapshot {
   code: string;
   hostId: string;
   members: MemberInfo[];
   settings: GameSettings;
   game: GameState | null;
+  chat?: ChatMessage[];
 }
 
 export interface PublicNegotiation {
@@ -42,6 +52,8 @@ export interface ClientView {
   serverNow: number;
   hostId: string;
   settings: GameSettings;
+  /** Mensajes generales + privados en los que participa este jugador (nunca los privados ajenos). */
+  chat: ChatMessage[];
   me: {
     id: string;
     name: string;
@@ -106,6 +118,7 @@ export function buildView(room: RoomSnapshot, viewerId: string, now: number): Cl
     serverNow: now,
     hostId: room.hostId,
     settings: room.settings,
+    chat: (room.chat ?? []).filter((c) => c.to === null || c.from === viewerId || c.to === viewerId),
     me: {
       id: meMember.id,
       name: meMember.name,

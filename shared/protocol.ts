@@ -29,6 +29,8 @@ export interface ClientToServer {
   'room:close': (p: object, ack: Ack) => void;
   'game:start': (p: object, ack: Ack) => void;
   'game:restart': (p: object, ack: Ack) => void;
+  /** to = null → chat general; si no, id de la persona destinataria (privado). */
+  'chat:send': (p: { to: string | null; text: string }, ack: Ack) => void;
   /** Para `peek`, la respuesta incluye las pujas actuales (solo al anfitrión). */
   'game:action': (p: ClientGameAction, ack: Ack<{ bids?: PeekedBid[] }>) => void;
 }

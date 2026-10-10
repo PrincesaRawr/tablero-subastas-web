@@ -307,3 +307,40 @@ describe('monedas iniciales', () => {
     luis.socket.disconnect();
   });
 });
+
+describe('chat de la partida', () => {
+  it('general para todos, privado solo para los dos, y se borra al terminar', async () => {
+    const host = await client();
+    const { code } = await ok(host, 'room:create', { name: 'Ana', playing: true });
+    const luis = await client();
+    const eva = await client();
+    await ok(luis, 'room:join', { code, name: 'Luis' });
+    await ok(eva, 'room:join', { code, name: 'Eva' });
+    const all = [host, luis, eva];
+    await settle(all, (v) => v.members.length === 3);
+    // solo durante la partida
+    expect((await luis.call('chat:send', { to: null, text: 'hola' })).error).toMatch(/solo está disponible durante la partida/);
+    await ok(host, 'game:start');
+    await settle(all, (v) => !!v.game);
+    const id = Object.fromEntries(all.map((c) => [c.view().me.name, c.view().me.id]));
+
+    await ok(host, 'chat:send', { to: null, text: '¡Hola a todos!' });
+    await ok(luis, 'chat:send', { to: id.Eva, text: 'secreto para Eva' });
+    expect((await luis.call('chat:send', { to: id.Eva, text: 'otro' })).error).toMatch(/muy rápido/);
+    expect((await eva.call('chat:send', { to: id.Eva, text: 'yo' })).ok).toBe(false);
+    expect((await eva.call('chat:send', { to: null, text: '   ' })).ok).toBe(false);
+
+    await settle(all, (v) => v.chat.some((m) => m.text === '¡Hola a todos!'));
+    await eva.waitFor((v) => v.chat.some((m) => m.text === 'secreto para Eva'));
+    expect(luis.view().chat.map((m) => m.text)).toEqual(['¡Hola a todos!', 'secreto para Eva']);
+    // Ana nunca ha recibido el privado en ningún mensaje
+    for (const v of host.views) expect(JSON.stringify(v)).not.toContain('secreto para Eva');
+
+    await ok(host, 'game:action', { type: 'endNow' });
+    await settle(all, (v) => v.game?.phase === 'FIN');
+    for (const c of all) expect(c.view().chat).toEqual([]);
+    expect((await eva.call('chat:send', { to: null, text: 'tarde' })).ok).toBe(false);
+    await ok(host, 'room:close');
+    for (const c of all) c.socket.disconnect();
+  });
+});

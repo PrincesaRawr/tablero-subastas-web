@@ -8,6 +8,9 @@ import {
   DEFAULT_AUCTION_TIMER_S,
   DEFAULT_PLACEMENT_TIMER_S,
   EMPTY_ROOM_TTL_MS,
+  CHAT_MAX_LENGTH,
+  CHAT_MAX_MESSAGES,
+  CHAT_MIN_INTERVAL_MS,
   MAX_COINS,
   MAX_NAME_LENGTH,
   MAX_PLAYERS,
@@ -20,7 +23,7 @@ import {
 import type { Rng } from '../shared/engine.js';
 import { createGame, gameReducer, type GameAction, type GameSettings, type GameState } from '../shared/game.js';
 import type { ClientToServer, ServerToClient } from '../shared/protocol.js';
-import { buildView } from '../shared/view.js';
+import { buildView, type ChatMessage } from '../shared/view.js';
 
 interface Member {
   id: string;
@@ -38,6 +41,9 @@ interface Room {
   game: GameState | null;
   timer: NodeJS.Timeout | null;
   emptySince: number | null;
+  chat: ChatMessage[];
+  chatSeq: number;
+  lastChatAt: Map<string, number>;
 }
 
 type IO = Server<ClientToServer, ServerToClient>;
@@ -102,7 +108,13 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
   };
 
   const broadcast = (room: Room) => {
+    // El chat solo existe durante la partida: al terminar (o sin partida) se borra.
+    if (!room.game || room.game.phase === 'FIN') {
+      room.chat = [];
+      room.lastChatAt.clear();
+    }
     const snapshot = {
+      chat: room.chat,
       code: room.code,
       hostId: room.hostId,
       settings: room.settings,
@@ -221,6 +233,9 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
         game: null,
         timer: null,
         emptySince: null,
+        chat: [],
+        chatSeq: 0,
+        lastChatAt: new Map(),
       };
       const member: Member = { id: room.hostId, token: randomUUID(), name, isPlaying: p.playing !== false, sockets: new Set() };
       room.members.push(member);
@@ -328,6 +343,24 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
       if (room.game?.phase !== 'FIN') throw new UserError('Solo se puede empezar otra partida al terminar esta.');
       startGame(room);
       syncTimer(room);
+      broadcast(room);
+    }));
+
+    socket.on('chat:send', handle(socket, (p: { to: string | null; text: string }) => {
+      const { room, member } = ctxOf(socket);
+      if (!room.game || room.game.phase === 'FIN') throw new UserError('El chat solo está disponible durante la partida.');
+      const text = String(p.text ?? '').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX_LENGTH);
+      if (!text) throw new UserError('Escribe algo antes de enviar.');
+      const to = p.to ?? null;
+      if (to !== null) {
+        if (to === member.id) throw new UserError('No puedes escribirte a ti mismo.');
+        if (!room.members.some((m) => m.id === to)) throw new UserError('Esa persona no está en la sala.');
+      }
+      const last = room.lastChatAt.get(member.id) ?? 0;
+      if (now() - last < CHAT_MIN_INTERVAL_MS) throw new UserError('Vas muy rápido, espera un momento.');
+      room.lastChatAt.set(member.id, now());
+      room.chat.push({ id: ++room.chatSeq, from: member.id, to, text, at: now() });
+      if (room.chat.length > CHAT_MAX_MESSAGES) room.chat.splice(0, room.chat.length - CHAT_MAX_MESSAGES);
       broadcast(room);
     }));
 

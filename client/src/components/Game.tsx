@@ -7,6 +7,7 @@ import { act, call, forgetSession, showToast } from '../store';
 import { PHASE_LABEL, describeSlots, joinNames, logText, nameResolver, resolutionVerdict, winnerLine, type NameOf } from '../text';
 import { usePlacementDraft, type PlacementDraft } from '../usePlacementDraft';
 import { Board } from './Board';
+import { Chat } from './Chat';
 import { Countdown, DraftTray, TokenRow } from './common';
 import { Token } from './Token';
 
@@ -177,6 +178,7 @@ export function Game({ view, onRules }: { view: ClientView; onRules: () => void 
           {me.isHost && g.phase !== 'FIN' && <HostTools />}
         </aside>
       </div>
+      {g.phase !== 'FIN' && <Chat view={view} />}
     </main>
   );
 }
