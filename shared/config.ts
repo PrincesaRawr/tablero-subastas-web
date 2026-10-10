@@ -69,9 +69,9 @@ export const MAX_TIMER_S = 600;
 /** Cuando todos los jugadores han enviado su puja, la subasta se cierra sola tras estos segundos sin cambios (0 = nunca). */
 export const AUTO_CLOSE_AFTER_ALL_BIDS_S = 5;
 /** Modo automático del anfitrión: segundos de espera antes de cada paso. */
-export const AUTO_DEAL_DELAY_S = 2; // sacar fichas al empezar la ronda
-export const AUTO_OPEN_DELAY_S = 5; // abrir la subasta (tiempo para ver las fichas)
-export const AUTO_NEXT_DELAY_S = 6; // pasar de ronda (tiempo para ver el resultado)
+export const AUTO_DEAL_DELAY_S = 1; // sacar fichas al empezar la ronda
+export const AUTO_OPEN_DELAY_S = 4; // abrir la subasta (tiempo para ver las fichas)
+export const AUTO_NEXT_DELAY_S = 3; // pasar de ronda (tiempo para ver el resultado)
 
 /** Código de sala: longitud y alfabeto (sin letras confusas como I/O). */
 export const ROOM_CODE_LENGTH = 4;
