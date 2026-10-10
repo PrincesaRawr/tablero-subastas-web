@@ -8,6 +8,9 @@ import {
   DEFAULT_AUCTION_TIMER_S,
   DEFAULT_PLACEMENT_TIMER_S,
   EMPTY_ROOM_TTL_MS,
+  AUTO_DEAL_DELAY_S,
+  AUTO_NEXT_DELAY_S,
+  AUTO_OPEN_DELAY_S,
   CHAT_MAX_LENGTH,
   CHAT_MAX_MESSAGES,
   CHAT_MIN_INTERVAL_MS,
@@ -23,7 +26,7 @@ import {
 import type { Rng } from '../shared/engine.js';
 import { createGame, gameReducer, type GameAction, type GameSettings, type GameState } from '../shared/game.js';
 import type { ClientToServer, ServerToClient } from '../shared/protocol.js';
-import { buildView, type ChatMessage } from '../shared/view.js';
+import { buildView, type AutoStep, type ChatMessage } from '../shared/view.js';
 
 interface Member {
   id: string;
@@ -43,6 +46,8 @@ interface Room {
   emptySince: number | null;
   chat: ChatMessage[];
   chatSeq: number;
+  /** Paso automático programado y la "foto" de la fase en la que se programó. */
+  autoStep: (AutoStep & { key: string }) | null;
   lastChatAt: Map<string, number>;
 }
 
@@ -54,6 +59,8 @@ export interface ServerOptions {
   rng?: Rng;
   now?: () => number;
   staticDir?: string;
+  /** Solo para tests: esperas del modo automático en ms. */
+  autoDelaysMs?: Partial<Record<AutoStep['action'], number>>;
 }
 
 export interface RunningServer {
@@ -77,6 +84,12 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
   const rng = opts.rng ?? Math.random;
   const now = opts.now ?? Date.now;
   const rooms = new Map<string, Room>();
+  const autoDelayMs: Record<AutoStep['action'], number> = {
+    deal: AUTO_DEAL_DELAY_S * 1000,
+    open: AUTO_OPEN_DELAY_S * 1000,
+    next: AUTO_NEXT_DELAY_S * 1000,
+    ...opts.autoDelaysMs,
+  };
   const tokens = new Map<string, { code: string; memberId: string }>();
 
   const app = express();
@@ -115,6 +128,7 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
     }
     const snapshot = {
       chat: room.chat,
+      autoStep: room.autoStep ? { action: room.autoStep.action, at: room.autoStep.at } : null,
       code: room.code,
       hostId: room.hostId,
       settings: room.settings,
@@ -135,7 +149,23 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
     if (!g) return;
     let at: number | null = null;
     let action: GameAction | null = null;
-    if (g.phase === 'PUJAS_ABIERTAS' && (g.auctionDeadline || g.autoCloseAt)) {
+
+    // Modo automático: el plazo se fija al entrar en cada fase y no se reinicia con otras acciones.
+    let step: AutoStep['action'] | null = null;
+    if (room.settings.autoAdvance) {
+      if (g.phase === 'FICHAS') step = g.auction ? 'open' : 'deal';
+      else if (g.phase === 'RONDA_CERRADA') step = 'next';
+    }
+    if (!step) room.autoStep = null;
+    else {
+      const key = `${g.round}:${g.phase}:${g.auction ? 1 : 0}`;
+      if (room.autoStep?.key !== key) room.autoStep = { key, action: step, at: now() + autoDelayMs[step] };
+      [at, action] = [room.autoStep.at, { type: step }];
+    }
+
+    if (action) {
+      // ya hay un paso automático
+    } else if (g.phase === 'PUJAS_ABIERTAS' && (g.auctionDeadline || g.autoCloseAt)) {
       const times = [g.auctionDeadline, g.autoCloseAt].filter((t): t is number => t !== null);
       [at, action] = [Math.min(...times), { type: 'close' }];
     }
@@ -229,12 +259,14 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
           auctionTimerS: DEFAULT_AUCTION_TIMER_S,
           placementTimerS: DEFAULT_PLACEMENT_TIMER_S,
           startingCoins: STARTING_COINS,
+          autoAdvance: false,
         },
         game: null,
         timer: null,
         emptySince: null,
         chat: [],
         chatSeq: 0,
+        autoStep: null,
         lastChatAt: new Map(),
       };
       const member: Member = { id: room.hostId, token: randomUUID(), name, isPlaying: p.playing !== false, sockets: new Set() };
@@ -318,7 +350,13 @@ export async function startServer(opts: ServerOptions = {}): Promise<RunningServ
         throw new UserError(`Las monedas iniciales van de 1 a ${MAX_COINS}.`);
       if (room.game && room.game.phase !== 'FIN' && coins !== room.settings.startingCoins)
         throw new UserError('Las monedas iniciales solo se pueden cambiar antes de empezar la partida.');
-      room.settings = { auctionTimerS: clamp(p.auctionTimerS), placementTimerS: clamp(p.placementTimerS), startingCoins: coins };
+      room.settings = {
+        auctionTimerS: clamp(p.auctionTimerS),
+        placementTimerS: clamp(p.placementTimerS),
+        startingCoins: coins,
+        autoAdvance: !!p.autoAdvance,
+      };
+      syncTimer(room);
       broadcast(room);
     }));
 

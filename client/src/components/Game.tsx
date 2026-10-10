@@ -266,6 +266,7 @@ function PhasePanel(p: PanelProps) {
   const { g } = p;
   return (
     <section className="card phase-panel" aria-live="polite">
+      {g.autoStep && <AutoStepNotice step={g.autoStep} isLast={g.round >= g.totalRounds} />}
       {g.phase === 'FICHAS' && <DealPanel {...p} />}
       {g.phase === 'PUJAS_ABIERTAS' && <BidPanel {...p} />}
       {g.resolution && ['RESOLUCION', 'NEGOCIACION', 'COLOCACION', 'RONDA_CERRADA'].includes(g.phase) && (
@@ -277,6 +278,17 @@ function PhasePanel(p: PanelProps) {
       {g.phase === 'RONDA_CERRADA' && <ClosedPanel {...p} />}
       {g.phase === 'FIN' && <FinalPanel {...p} />}
     </section>
+  );
+}
+
+const AUTO_STEP_LABEL = { deal: 'Sacando fichas', open: 'Abriendo subasta', next: 'Siguiente ronda' } as const;
+
+function AutoStepNotice({ step, isLast }: { step: NonNullable<GameView['autoStep']>; isLast: boolean }) {
+  const label = step.action === 'next' && isLast ? 'Resultados' : AUTO_STEP_LABEL[step.action];
+  return (
+    <p className="auto-step" role="status" key={step.at}>
+      ⏩ {label} en <Countdown deadline={step.at} />
+    </p>
   );
 }
 
@@ -896,6 +908,14 @@ function HostTools({ view }: { view: ClientView }) {
   return (
     <details className="card host-tools">
       <summary>⚙️ Controles del anfitrión</summary>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={!!view.settings.autoAdvance}
+          onChange={(e) => call('room:settings', { ...view.settings, autoAdvance: e.target.checked })}
+        />
+        ⏩ Modo automático (sacar fichas, abrir subasta y pasar de ronda solo)
+      </label>
       <p className="hint">Usa el botón ± de la lista de jugadores para añadir o quitar monedas.</p>
       <div className="row-buttons">
         <button

@@ -75,11 +75,12 @@ function HostLobbyControls({ view, canStart }: { view: ClientView; canStart: boo
   const [auction, setAuction] = useState(String(view.settings.auctionTimerS));
   const [placement, setPlacement] = useState(String(view.settings.placementTimerS));
   const [coins, setCoins] = useState(String(view.settings.startingCoins));
-  const save = async (startingCoins = Number(coins)) => {
+  const save = async (startingCoins = Number(coins), autoAdvance = !!view.settings.autoAdvance) => {
     const res = await call('room:settings', {
       auctionTimerS: Number(auction) || 0,
       placementTimerS: Number(placement) || 0,
       startingCoins: Math.round(startingCoins) || 0,
+      autoAdvance,
     });
     if (!res) setCoins(String(view.settings.startingCoins)); // valor no válido: vuelve al anterior
   };
@@ -98,6 +99,14 @@ function HostLobbyControls({ view, canStart }: { view: ClientView; canStart: boo
           onChange={(e) => call('room:setPlaying', { playing: e.target.checked })}
         />
         Yo también juego
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={!!view.settings.autoAdvance}
+          onChange={(e) => save(Number(coins), e.target.checked)}
+        />
+        ⏩ Modo automático (sacar fichas, abrir subasta y pasar de ronda solo)
       </label>
       <label className="field">
         <span>🪙 Monedas con las que empieza cada jugador</span>

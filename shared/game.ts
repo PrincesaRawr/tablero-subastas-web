@@ -121,6 +121,8 @@ export interface GameSettings {
   placementTimerS: number;
   /** Monedas con las que empieza cada jugador (lo elige el anfitrión en el lobby). */
   startingCoins: number;
+  /** Modo automático: sacar fichas, abrir subasta y pasar de ronda sin que el anfitrión pulse nada. */
+  autoAdvance?: boolean;
 }
 
 export type GameAction =

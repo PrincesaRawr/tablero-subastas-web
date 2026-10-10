@@ -1336,3 +1336,13 @@ input::placeholder {
 .history .log-peek-chats {
   color: var(--gold);
 }
+
+.auto-step {
+  margin: 0 0 0.6rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 12px;
+  background: #ffd45e1c;
+  border: 1px solid #c99a2a88;
+  color: var(--gold);
+  font-weight: 600;
+}

@@ -31,6 +31,13 @@ export interface RoomSnapshot {
   settings: GameSettings;
   game: GameState | null;
   chat?: ChatMessage[];
+  /** Próximo paso del modo automático (si está activado). */
+  autoStep?: AutoStep | null;
+}
+
+export interface AutoStep {
+  action: 'deal' | 'open' | 'next';
+  at: number;
 }
 
 export interface PublicNegotiation {
@@ -82,6 +89,7 @@ export interface ClientView {
     auction: { A: Color[]; B: Color[] } | null;
     auctionDeadline: number | null;
     autoCloseAt: number | null;
+    autoStep: AutoStep | null;
     resolution: PublicResolution | null;
     placement: PlacementTask | null;
     negotiation: PublicNegotiation | null;
@@ -152,6 +160,7 @@ export function buildView(room: RoomSnapshot, viewerId: string, now: number): Cl
       auction: g.auction,
       auctionDeadline: g.auctionDeadline,
       autoCloseAt: g.autoCloseAt,
+      autoStep: room.autoStep ?? null,
       resolution: g.resolution ? publicResolution(g.resolution) : null,
       placement: g.placement,
       negotiation,
