@@ -4,7 +4,7 @@
  * ajenas (hasta FIN) ni pujas ajenas (solo las de los ganadores, D12).
  */
 import type { Color } from './config.js';
-import type { Bid, Board, FinalResults, NegotiationSlot, Placement } from './engine.js';
+import type { Bag, Bid, Board, FinalResults, NegotiationSlot, Placement } from './engine.js';
 import type { GameSettings, GameState, LogEntry, Phase, PlacementTask, PublicResolution } from './game.js';
 import { publicResolution } from './game.js';
 
@@ -87,6 +87,8 @@ export interface ClientView {
     negotiation: PublicNegotiation | null;
     log: LogEntry[];
     results: FinalResults | null;
+    /** Fichas que quedan en el saco de cada subasta (información pública). */
+    bags: { A: Bag; B: Bag };
   };
 }
 
@@ -155,6 +157,7 @@ export function buildView(room: RoomSnapshot, viewerId: string, now: number): Cl
       negotiation,
       log: g.log,
       results: g.phase === 'FIN' ? g.results : null,
+      bags: g.bags,
     },
   };
 }

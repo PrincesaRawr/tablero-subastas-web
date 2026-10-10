@@ -1285,3 +1285,45 @@ input::placeholder {
     height: min(70vh, calc(100vh - 110px));
   }
 }
+
+/* ───────── sacos de fichas ───────── */
+.auction {
+  flex-wrap: wrap;
+}
+.auction-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 4.5em;
+}
+.bag {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.bag-title {
+  font-weight: 600;
+}
+.bag-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  color: var(--text);
+}
+.bag-count.empty {
+  opacity: 0.35;
+}
+.bag-dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.55rem;
+  color: #fff;
+  border: 1px solid #fff8;
+}

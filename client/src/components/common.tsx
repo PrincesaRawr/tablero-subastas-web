@@ -79,7 +79,10 @@ export function RulesModal({ onClose, startingCoins = STARTING_COINS }: { onClos
         </p>
         <h3>🔨 Cada ronda</h3>
         <ol>
-          <li>Hay dos subastas, <b>A</b> y <b>B</b>, con 5 fichas cada una.</li>
+          <li>
+            Hay dos subastas, <b>A</b> y <b>B</b>, con 5 fichas cada una. Cada subasta saca sus fichas de su propio saco,
+            que empieza con 10 de cada color; las fichas que salen ya no vuelven.
+          </li>
           <li>Pujas en secreto en A, en B, en las dos o en ninguna. Puedes cambiar tu puja mientras esté abierta.</li>
           <li>Gana cada subasta quien más pujó.</li>
           <li>

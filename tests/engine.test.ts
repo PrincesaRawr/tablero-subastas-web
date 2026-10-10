@@ -5,6 +5,7 @@ import {
   applyCoinLoss,
   assignCombos,
   computeFinalResults,
+  drawFromBag,
   emptyBoard,
   findOccurrences,
   formatPlacements,
@@ -241,5 +242,15 @@ describe('final (D10)', () => {
     ]);
     expect(res.ranking.map((r) => [r.playerId, r.count])).toEqual([['ana', 1], ['luis', 1], ['eva', 0]]);
     expect(res.winners).toEqual(['ana', 'luis']);
+  });
+});
+
+describe('sacos', () => {
+  it('drawFromBag saca sin devolver y nunca más de lo que hay', () => {
+    const bag = { rosa: 1, azul: 0, naranja: 2, verde: 0, morado: 0 };
+    const r = drawFromBag(bag, 5, seeded(4));
+    expect(r.tokens.sort()).toEqual(['naranja', 'naranja', 'rosa']);
+    expect(r.bag).toEqual({ rosa: 0, azul: 0, naranja: 0, verde: 0, morado: 0 });
+    expect(bag.rosa).toBe(1); // no modifica el original
   });
 });

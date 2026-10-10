@@ -7,6 +7,7 @@
  */
 import {
   AUTO_CLOSE_AFTER_ALL_BIDS_S,
+  BAG_PER_COLOR,
   MAX_COINS,
   NEGOTIATION_TIME_LIMIT_S,
   STARTING_COINS,
@@ -21,11 +22,13 @@ import {
   computeFinalResults,
   emptyBoard,
   randomPlacements,
-  randomTokens,
+  drawFromBag,
+  fullBag,
   resolveAuctions,
   validateBid,
   validatePlacements,
   type AuctionId,
+  type Bag,
   type NegotiationSlot,
   type Bid,
   type Board,
@@ -107,6 +110,8 @@ export interface GameState {
   negotiation: Negotiation | null;
   log: LogEntry[];
   results: FinalResults | null;
+  /** Lo que queda en el saco de cada subasta. */
+  bags: { A: Bag; B: Bag };
 }
 
 export interface GameSettings {
@@ -162,6 +167,7 @@ export function createGame(playerIds: string[], rng: Rng, startingCoins: number 
     negotiation: null,
     log: [],
     results: null,
+    bags: { A: fullBag(BAG_PER_COLOR), B: fullBag(BAG_PER_COLOR) },
   };
 }
 
@@ -183,7 +189,11 @@ export function gameReducer(prev: GameState, action: GameAction, ctx: ActionCont
       if (!canControl) return fail('Solo el anfitrión puede repartir fichas.');
       if (s.phase !== 'FICHAS') return fail('Ahora no se pueden repartir fichas.');
       if (s.auction) return fail('Las fichas de esta ronda ya están repartidas.');
-      s.auction = { A: randomTokens(TOKENS_PER_AUCTION, ctx.rng), B: randomTokens(TOKENS_PER_AUCTION, ctx.rng) };
+      const a = drawFromBag(s.bags.A, TOKENS_PER_AUCTION, ctx.rng);
+      const b = drawFromBag(s.bags.B, TOKENS_PER_AUCTION, ctx.rng);
+      if (!a.tokens.length && !b.tokens.length) return fail('Los sacos están vacíos.');
+      s.auction = { A: a.tokens, B: b.tokens };
+      s.bags = { A: a.bag, B: b.bag };
       return ok();
     }
 

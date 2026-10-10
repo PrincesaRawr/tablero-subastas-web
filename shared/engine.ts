@@ -63,6 +63,30 @@ export function randomTokens(count: number, rng: Rng): Color[] {
   return Array.from({ length: count }, () => COLORS[randomInt(rng, COLORS.length)]);
 }
 
+/** Saco de fichas: cuántas quedan de cada color. */
+export type Bag = Record<Color, number>;
+
+export function fullBag(perColor: number): Bag {
+  return Object.fromEntries(COLORS.map((c) => [c, perColor])) as Bag;
+}
+
+export function bagSize(bag: Bag): number {
+  return COLORS.reduce((a, c) => a + bag[c], 0);
+}
+
+/** Saca `count` fichas al azar del saco, sin devolverlas (si quedan menos, saca las que haya). */
+export function drawFromBag(bag: Bag, count: number, rng: Rng): { tokens: Color[]; bag: Bag } {
+  const left = { ...bag };
+  const tokens: Color[] = [];
+  for (let k = 0; k < count && bagSize(left) > 0; k++) {
+    let r = randomInt(rng, bagSize(left));
+    const color = COLORS.find((c) => (r -= left[c]) < 0)!;
+    left[color] -= 1;
+    tokens.push(color);
+  }
+  return { tokens, bag: left };
+}
+
 function inBounds(row: number, col: number): boolean {
   return Number.isInteger(row) && Number.isInteger(col) && row >= 0 && col >= 0 && row < BOARD_SIZE && col < BOARD_SIZE;
 }

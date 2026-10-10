@@ -35,6 +35,11 @@ export const STARTING_COINS = 40;
 export const MAX_COINS = 999;
 export const TOTAL_ROUNDS = 10;
 export const TOKENS_PER_AUCTION = 5;
+/**
+ * Cada subasta tiene su propio saco con esta cantidad de fichas de cada color.
+ * Las fichas que salen no vuelven (aunque se descarten). 10 × 5 colores = 50 = 10 rondas × 5 fichas.
+ */
+export const BAG_PER_COLOR = 10;
 
 /** [D2] Longitud de la combinación secreta (colores distintos, sin inversas repetidas). */
 export const COMBO_LENGTH = 3;

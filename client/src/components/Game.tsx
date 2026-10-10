@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Color } from '../../../shared/config';
+import { COLORS, COLOR_LABEL, COLOR_SYMBOL, type Color } from '../../../shared/config';
 import { applyPlacements, findOccurrences, type AuctionId, type Cell, type Placement } from '../../../shared/engine';
 import type { ClientView } from '../../../shared/view';
 import type { PeekedBid } from '../../../shared/protocol';
@@ -9,7 +9,7 @@ import { usePlacementDraft, type PlacementDraft } from '../usePlacementDraft';
 import { Board } from './Board';
 import { Chat } from './Chat';
 import { Countdown, DraftTray, TokenRow } from './common';
-import { Token } from './Token';
+import { PALETTE, Token } from './Token';
 
 type GameView = NonNullable<ClientView['game']>;
 
@@ -281,14 +281,34 @@ function PhasePanel(p: PanelProps) {
 }
 
 function Auctions({ g }: { g: GameView }) {
-  if (!g.auction) return null;
   return (
     <div className="auctions">
       {(['A', 'B'] as const).map((id) => (
         <div className="auction" key={id}>
-          <div className="auction-name">Subasta {id}</div>
-          <TokenRow tokens={g.auction![id]} size={38} label={`Fichas de la subasta ${id}`} />
+          <div className="auction-head">
+            <div className="auction-name">Subasta {id}</div>
+            <BagCounts bag={g.bags[id]} label={`Quedan en el saco ${id}`} />
+          </div>
+          {g.auction && <TokenRow tokens={g.auction[id]} size={38} label={`Fichas de la subasta ${id}`} />}
         </div>
+      ))}
+    </div>
+  );
+}
+
+/** "Saco: ♥6 ◆4 ●5 ▲3 ✦2" con el color de cada ficha. */
+function BagCounts({ bag, label }: { bag: GameView['bags']['A']; label: string }) {
+  const total = COLORS.reduce((a, c) => a + bag[c], 0);
+  return (
+    <div className="bag" aria-label={`${label}: ${COLORS.map((c) => `${bag[c]} ${COLOR_LABEL[c].toLowerCase()}`).join(', ')}`}>
+      <span className="bag-title" aria-hidden="true">🎒 {total}</span>
+      {COLORS.map((c) => (
+        <span key={c} className={`bag-count${bag[c] === 0 ? ' empty' : ''}`} title={`${COLOR_LABEL[c]}: quedan ${bag[c]}`} aria-hidden="true">
+          <span className="bag-dot" style={{ background: PALETTE[c].main }}>
+            {COLOR_SYMBOL[c]}
+          </span>
+          {bag[c]}
+        </span>
       ))}
     </div>
   );
@@ -299,7 +319,8 @@ function DealPanel({ view, g }: PanelProps) {
   return (
     <>
       <h2>Ronda {g.round}</h2>
-      {g.auction ? <Auctions g={g} /> : <p className="muted">Aún no se han repartido las fichas.</p>}
+      <Auctions g={g} />
+      {!g.auction && <p className="muted">Aún no se han repartido las fichas.</p>}
       {host ? (
         <div className="row-buttons">
           {!g.auction ? (
